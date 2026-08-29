@@ -2,10 +2,13 @@ import type { GameSettings } from './GameSettings';
 import { DEFAULT_SETTINGS } from './GameSettings';
 
 export type SfxName = 'click' | 'success' | 'fail' | 'battle' | 'stratagem' | 'turn_end' | 'capture';
+export type BgmTrack = 'menu' | 'game';
 
 /** Cocos 运行时注入的真实音频播放器 */
 export interface FileAudioProvider {
   playSfx(name: SfxName): void;
+  startMenuBgm(): void;
+  startGameBgm(): void;
   startBgm(): void;
   stopBgm(): void;
   setBgmVolume(v: number): void;
@@ -26,6 +29,7 @@ class AudioManagerImpl {
   private bgmVolume = DEFAULT_SETTINGS.bgmVolume;
   private sfxVolume = DEFAULT_SETTINGS.sfxVolume;
   private bgmPlaying = false;
+  private bgmTrack: BgmTrack | null = null;
   private fileProvider: FileAudioProvider | null = null;
   private useFiles = false;
 
@@ -37,7 +41,10 @@ class AudioManagerImpl {
     provider.setSfxVolume(this.sfxVolume);
     provider.setBgmEnabled(this.bgmEnabled);
     provider.setSfxEnabled(this.sfxEnabled);
-    if (this.bgmPlaying && this.bgmEnabled) provider.startBgm();
+    if (this.bgmPlaying && this.bgmEnabled && this.bgmTrack) {
+      if (this.bgmTrack === 'menu') provider.startMenuBgm();
+      else provider.startGameBgm();
+    }
   }
 
   applySettings(s: GameSettings) {
@@ -79,11 +86,11 @@ class AudioManagerImpl {
     if (this.useFiles && this.fileProvider) {
       this.fileProvider.setBgmEnabled(on);
       if (!on) this.bgmPlaying = false;
-      else if (!this.bgmPlaying) { this.startBgm(); }
+      else if (!this.bgmPlaying) { this.startMenuBgm(); }
       return;
     }
     if (!on) this.stopBgm();
-    else if (!this.bgmPlaying) this.startBgm();
+    else if (!this.bgmPlaying) this.startMenuBgm();
     this.refreshBgmGain();
   }
 
@@ -193,13 +200,36 @@ class AudioManagerImpl {
     this.playFileOrSynth('capture', () => this.chord([659, 784, 988], 0.35, 0.055));
   }
 
-  startBgm() {
+  startMenuBgm() {
     if (this.useFiles && this.fileProvider) {
       if (!this.bgmEnabled) return;
-      this.fileProvider.startBgm();
+      this.fileProvider.startMenuBgm();
       this.bgmPlaying = true;
+      this.bgmTrack = 'menu';
       return;
     }
+    this.startBgmSynth();
+    this.bgmTrack = 'menu';
+  }
+
+  startGameBgm() {
+    if (this.useFiles && this.fileProvider) {
+      if (!this.bgmEnabled) return;
+      this.fileProvider.startGameBgm();
+      this.bgmPlaying = true;
+      this.bgmTrack = 'game';
+      return;
+    }
+    this.startBgmSynth();
+    this.bgmTrack = 'game';
+  }
+
+  /** @deprecated 使用 startGameBgm */
+  startBgm() {
+    this.startGameBgm();
+  }
+
+  private startBgmSynth() {
     const ctx = this.ensureCtx();
     if (!ctx || this.bgmPlaying || !this.bgmEnabled) return;
     this.stopBgm();
@@ -232,6 +262,7 @@ class AudioManagerImpl {
     this.bgmNodes = [];
     this.bgmGain = null;
     this.bgmPlaying = false;
+    this.bgmTrack = null;
   }
 }
 

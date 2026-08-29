@@ -10,7 +10,8 @@
     "simulate": "tsx scripts/simulate.ts",
     "flow": "tsx scripts/official-flow.ts",
     "generate:audio": "tsx scripts/generate-audio.ts",
-    "generate:portraits": "tsx scripts/generate-portraits.ts"
+    "generate:portraits": "tsx scripts/generate-portraits.ts",
+    "import:portraits": "tsx scripts/import-stitch-portraits.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

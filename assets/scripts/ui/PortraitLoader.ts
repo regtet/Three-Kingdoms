@@ -1,4 +1,5 @@
 import { Node, resources, Sprite, SpriteFrame, UITransform } from 'cc';
+import { PORTRAIT_ID_ALIASES } from '../core/data/portraitMap';
 
 const cache = new Map<string, SpriteFrame>();
 let preloadStarted = false;
@@ -32,7 +33,8 @@ export function isPortraitsReady(): boolean {
 }
 
 export function getPortraitFrame(generalId: string): SpriteFrame | null {
-  return cache.get(generalId) ?? null;
+  const alias = PORTRAIT_ID_ALIASES[generalId];
+  return cache.get(generalId) ?? (alias ? cache.get(alias) ?? null : null);
 }
 
 /** 在头像节点上叠加立绘 Sprite（若有资源） */
@@ -45,9 +47,11 @@ export function attachPortraitImage(parent: Node, generalId: string, w: number, 
     img = new Node('PortraitImg');
     parent.addChild(img);
   }
+  const padX = Math.max(4, Math.floor(w * 0.06));
+  const padBottom = Math.max(8, Math.floor(h * 0.24));
   img.setPosition(0, faceY, 0);
   const tf = img.getComponent(UITransform) ?? img.addComponent(UITransform);
-  tf.setContentSize(w - 12, h - 42);
+  tf.setContentSize(w - padX * 2, h - padBottom);
   const sp = img.getComponent(Sprite) ?? img.addComponent(Sprite);
   sp.spriteFrame = sf;
   sp.sizeMode = Sprite.SizeMode.CUSTOM;

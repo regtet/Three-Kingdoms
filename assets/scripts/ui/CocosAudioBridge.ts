@@ -1,26 +1,25 @@
 import { _decorator, AudioClip, AudioSource, Component, Node, resources } from 'cc';
-import { audioManager, type FileAudioProvider, type SfxName } from './AudioManager';
+import { audioManager, type BgmTrack, type FileAudioProvider, type SfxName } from './AudioManager';
 
 const { ccclass } = _decorator;
 
-const CLIP_NAMES: (SfxName | 'bgm')[] = [
-  'bgm', 'click', 'success', 'fail', 'battle', 'stratagem', 'turn_end', 'capture',
+const CLIP_NAMES: (SfxName | 'bgm' | 'menu_bgm')[] = [
+  'bgm', 'menu_bgm', 'click', 'success', 'fail', 'battle', 'stratagem', 'turn_end', 'capture',
 ];
 
 /**
- * 从 assets/resources/audio/ 加载 WAV 并绑定到 audioManager
- * 挂到 GameBootstrap 节点即可
+ * 从 assets/resources/audio/ 加载音频并绑定到 audioManager
  */
 @ccclass('CocosAudioBridge')
 export class CocosAudioBridge extends Component {
   private bgmSource!: AudioSource;
-  /** Cocos 3.8：playOneShot 为实例方法，非静态 */
   private sfxSource!: AudioSource;
   private clips = new Map<string, AudioClip>();
   private bgmEnabled = true;
   private sfxEnabled = true;
   private bgmVolume = 0.6;
   private sfxVolume = 0.8;
+  private currentBgm: BgmTrack | null = null;
 
   onLoad() {
     this.bgmSource = this.addComponent(AudioSource);
@@ -47,7 +46,7 @@ export class CocosAudioBridge extends Component {
           this.clips.set(name, clip);
           loaded++;
         } else if (err) {
-          console.warn(`[CocosAudioBridge] 加载 audio/${name} 失败，将使用合成音效`, err);
+          console.warn(`[CocosAudioBridge] 加载 audio/${name} 失败`, err);
         }
         if (pending === 0 && loaded > 0) {
           this.bindProvider();
@@ -56,14 +55,26 @@ export class CocosAudioBridge extends Component {
     }
   }
 
+  private playBgmTrack(track: BgmTrack) {
+    if (!this.bgmEnabled) return;
+    const key = track === 'menu' ? 'menu_bgm' : 'bgm';
+    const clip = this.clips.get(key) ?? this.clips.get('bgm');
+    if (!clip || !this.bgmSource) return;
+    if (this.currentBgm === track && this.bgmSource.playing) return;
+    this.bgmSource.stop();
+    this.bgmSource.clip = clip;
+    this.bgmSource.volume = this.bgmVolume;
+    this.bgmSource.loop = true;
+    this.bgmSource.play();
+    this.currentBgm = track;
+  }
+
   private playSfxClip(clip: AudioClip) {
     if (!this.sfxSource || !this.sfxEnabled) return;
-    // Cocos 3.8.8：实例方法 playOneShot
     if (typeof this.sfxSource.playOneShot === 'function') {
       this.sfxSource.playOneShot(clip, this.sfxVolume);
       return;
     }
-    // 兼容旧版：单次播放
     this.sfxSource.stop();
     this.sfxSource.clip = clip;
     this.sfxSource.volume = this.sfxVolume;
@@ -78,18 +89,12 @@ export class CocosAudioBridge extends Component {
         const clip = this.clips.get(name);
         if (clip) this.playSfxClip(clip);
       },
-      startBgm: () => {
-        if (!this.bgmEnabled) return;
-        const clip = this.clips.get('bgm');
-        if (clip && this.bgmSource) {
-          this.bgmSource.clip = clip;
-          this.bgmSource.volume = this.bgmVolume;
-          this.bgmSource.loop = true;
-          this.bgmSource.play();
-        }
-      },
+      startMenuBgm: () => this.playBgmTrack('menu'),
+      startGameBgm: () => this.playBgmTrack('game'),
+      startBgm: () => this.playBgmTrack('game'),
       stopBgm: () => {
         this.bgmSource?.stop();
+        this.currentBgm = null;
       },
       setBgmVolume: (v) => {
         this.bgmVolume = v;
@@ -100,7 +105,10 @@ export class CocosAudioBridge extends Component {
       },
       setBgmEnabled: (on) => {
         this.bgmEnabled = on;
-        if (!on) this.bgmSource?.stop();
+        if (!on) {
+          this.bgmSource?.stop();
+          this.currentBgm = null;
+        }
       },
       setSfxEnabled: (on) => {
         this.sfxEnabled = on;

@@ -32,6 +32,7 @@ import { preloadPortraits } from './PortraitLoader';
 import { buildFactionLegend, refreshNeighborHighlights } from './MapVisual';
 import { refreshStrategicMapLayer } from './StrategicMap';
 import { buildGeneralEditorPanel } from './GeneralEditor';
+import { playIntroVideo } from './IntroVideo';
 import {
   buildCityStatusPanel,
   buildGeneralInfoContent,
@@ -61,7 +62,7 @@ const { ccclass } = _decorator;
 
 const TUTORIAL_KEY = 'tk_tutorial_seen';
 /** 改 UI 后看主菜单副标题是否为此版本，否则说明 Cocos 未加载最新脚本 */
-const UI_BUILD_TAG = 'UI-v1.2.1';
+const UI_BUILD_TAG = 'UI-v1.3.0';
 
 type Screen = 'menu' | 'scenario' | 'faction' | 'map' | 'end' | 'settings';
 @ccclass('GameRoot')
@@ -172,8 +173,10 @@ export class GameRoot extends Component {
           this.buildCategoryButtons(this.activeCategory, city);
         }
       });
-      this.showScreen('menu');
-      console.log('[GameRoot] 主菜单已显示');
+      playIntroVideo(this.root, () => {
+        this.showScreen('menu');
+      });
+      console.log('[GameRoot] 等待开场视频…');
     } catch (e) {
       console.error('[GameRoot] 启动失败:', e);
     }
@@ -389,7 +392,6 @@ export class GameRoot extends Component {
           this.slotPickerPanel.active = false;
           this.showScreen('scenario');
         } else if (gameEngine.loadGameFromSlot(i)) {
-          if (this.gameSettings.bgmEnabled) audioManager.startBgm();
           this.slotPickerPanel.active = false;
           this.showScreen('map');
           this.refreshMap();
@@ -574,7 +576,6 @@ export class GameRoot extends Component {
           gameEngine.setSaveSlot(this.activeSaveSlot);
           gameEngine.newGame(this.selectedScenario, f.id);
           this.selectedCityId = null;
-          if (this.gameSettings.bgmEnabled) audioManager.startBgm();
           this.showScreen('map');
           this.refreshMap();
         },
@@ -1204,6 +1205,20 @@ export class GameRoot extends Component {
 
   // ── 屏幕切换 ──
 
+  private isLobbyScreen(s: Screen): boolean {
+    return s === 'menu' || s === 'scenario' || s === 'faction' || s === 'settings';
+  }
+
+  private refreshScreenBgm(s: Screen) {
+    if (!this.gameSettings.bgmEnabled) {
+      audioManager.stopBgm();
+      return;
+    }
+    if (this.isLobbyScreen(s)) audioManager.startMenuBgm();
+    else if (s === 'map') audioManager.startGameBgm();
+    else audioManager.stopBgm();
+  }
+
   private showScreen(s: Screen) {
     this.screen = s;
     this.menuLayer.active = s === 'menu';
@@ -1222,6 +1237,7 @@ export class GameRoot extends Component {
     this.confirmPanel.active = false;
     this.genInfoPanel.active = false;
     this.closeSubPanel();
+    this.refreshScreenBgm(s);
     if (s === 'map') {
       this.refreshMap();
       this.maybeShowTutorial();
