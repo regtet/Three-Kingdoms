@@ -31,7 +31,6 @@ import { createPortraitDisplay } from './GeneralPortrait';
 import { preloadPortraits } from './PortraitLoader';
 import { buildFactionLegend, refreshNeighborHighlights } from './MapVisual';
 import { refreshStrategicMapLayer } from './StrategicMap';
-import { applyScreenAdapt } from './ScreenAdapt';
 import { buildGeneralEditorPanel } from './GeneralEditor';
 import {
   buildCityStatusPanel,
@@ -43,10 +42,12 @@ import {
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, type GameSettings } from './GameSettings';
 import {
   drawButton,
+  drawCategoryButton,
   drawCityMarker,
   drawMapGrid,
   drawModalFrame,
   drawPanel,
+  drawSidebarButton,
   drawTitleBar,
   ensureToastBg,
   hexToColor,
@@ -59,8 +60,11 @@ type ColorLike = { r: number; g: number; b: number; a: number };
 const { ccclass } = _decorator;
 
 const TUTORIAL_KEY = 'tk_tutorial_seen';
+/** 改 UI 后看主菜单副标题是否为此版本，否则说明 Cocos 未加载最新脚本 */
+const UI_BUILD_TAG = 'UI-v1.2.1';
 
 type Screen = 'menu' | 'scenario' | 'faction' | 'map' | 'end' | 'settings';
+@ccclass('GameRoot')
 export class GameRoot extends Component {
   private screen: Screen = 'menu';
   private selectedCityId: string | null = null;
@@ -93,6 +97,9 @@ export class GameRoot extends Component {
   private funcPanel!: Node;
   private statsPanel!: Node;
   private tutorialPanel!: Node;
+  private slotPickerPanel!: Node;
+  private slotBtnContainer!: Node;
+  private subLogBtn!: Node;
   private intelPanel!: Node;
   private dipPanel!: Node;
   private confirmPanel!: Node;
@@ -115,8 +122,11 @@ export class GameRoot extends Component {
   private hudDate!: Label;
   private hudCityName!: Label;
   private hudTurnBadge!: Label;
-  private menuSaveHint!: Label;
   private logLabel!: Label;
+  private mapLogBar!: Node;
+  private cmdBarNode!: Node;
+  private subDimNode!: Node;
+  private sidebarBtns: Node[] = [];
   private subTitle!: Label;
   private subInfo!: Label;
   private toastLabel!: Label;
@@ -144,24 +154,29 @@ export class GameRoot extends Component {
   private pendingBattleInput: BattleInput | null = null;
   private logScrollOffset = 0;
   private logFullScrollOffset = 0;
-  private readonly LOG_BAR_LINES = 4;
+  private readonly LOG_BAR_LINES = 1;
   private readonly LOG_FULL_PAGE = 12;
 
   onLoad() {
-    this.gameSettings = loadSettings();
-    audioManager.applySettings(this.gameSettings);
-    this.root = this.node;
-    this.root.addComponent(UITransform).setContentSize(L.W, L.H);
-    applyScreenAdapt(this.root);
-    this.panelBg(this.root, 'RootBg', L.W, L.H, 0, L.BG_COLOR);
-    this.buildUI();
-    preloadPortraits(() => {
-      if (this.activeCategory && this.selectedCityId && gameEngine.state) {
-        const city = findCity(gameEngine.state, this.selectedCityId);
-        this.buildCategoryButtons(this.activeCategory, city);
-      }
-    });
-    this.showScreen('menu');
+    try {
+      console.log(`[Three-Kingdoms] ${UI_BUILD_TAG} — 若主菜单未显示此版本号，说明 Cocos 未加载最新脚本`);
+      this.gameSettings = loadSettings();
+      audioManager.applySettings(this.gameSettings);
+      this.root = this.node;
+      this.root.addComponent(UITransform).setContentSize(L.W, L.H);
+      this.panelBg(this.root, 'RootBg', L.W, L.H, 0, L.BG_COLOR);
+      this.buildUI();
+      preloadPortraits(() => {
+        if (this.activeCategory && this.selectedCityId && gameEngine.state) {
+          const city = findCity(gameEngine.state, this.selectedCityId);
+          this.buildCategoryButtons(this.activeCategory, city);
+        }
+      });
+      this.showScreen('menu');
+      console.log('[GameRoot] 主菜单已显示');
+    } catch (e) {
+      console.error('[GameRoot] 启动失败:', e);
+    }
   }
 
   // ── 构建 ──
@@ -172,8 +187,12 @@ export class GameRoot extends Component {
     this.factionLayer = this.layer('FactionLayer');
     this.settingsLayer = this.layer('SettingsLayer');
     this.mapLayer = this.layer('MapLayer', false);
-    this.subPanel = this.layer('SubPanel', false);
+    this.subPanel = new Node('SubPanel');
+    this.subPanel.addComponent(UITransform).setContentSize(L.W, L.SUB_PANEL_H);
+    this.subPanel.addComponent(BlockInputEvents);
+    this.subPanel.active = false;
     this.subPanel.setPosition(0, L.SUB_PANEL_Y, 0);
+    this.mapLayer.addChild(this.subPanel);
     this.deployPanel = this.layer('DeployPanel', false);
     this.battlePanel = this.layer('BattlePanel', false);
     this.endLayer = this.layer('EndLayer');
@@ -184,6 +203,7 @@ export class GameRoot extends Component {
     this.buildSettings();
     this.buildMapScreen();
     this.buildSubPanel();
+    this.buildSlotPickerPanel();
     this.buildDeployPanel();
     this.buildBattlePanel();
     this.buildLogPanel();
@@ -257,14 +277,8 @@ export class GameRoot extends Component {
     node.setPosition(pos);
     node.addComponent(UITransform).setContentSize(w, h);
     const g = node.addComponent(Graphics);
-    if (catColor && !highlight) {
-      g.fillColor = toColor(catColor);
-      g.roundRect(-w / 2, -h / 2, w, h - 3, 8);
-      g.fill();
-      g.strokeColor = toColor(COL.borderGold);
-      g.lineWidth = 1;
-      g.roundRect(-w / 2, -h / 2, w, h - 3, 8);
-      g.stroke();
+    if (catColor !== undefined) {
+      drawSidebarButton(g, w, h, highlight);
     } else {
       drawButton(g, w, h, highlight, danger);
     }
@@ -285,64 +299,109 @@ export class GameRoot extends Component {
     this.panelBg(this.menuLayer, 'Bg', L.W, L.H, 0, COL.mapBg, { r: 60, g: 80, b: 120, a: 80 });
     const deco = new Node('MenuDeco');
     this.menuLayer.addChild(deco);
-    deco.setPosition(0, 120, 0);
+    deco.setPosition(0, L.MENU_TITLE_Y - 20, 0);
     deco.addComponent(UITransform).setContentSize(400, 400);
     const dg = deco.addComponent(Graphics);
     drawTitleBar(dg, 480, 0);
     const title = this.label(this.menuLayer, 'Title', '三国志', 52, new Vec3(0, L.MENU_TITLE_Y + 20, 0), 680);
     title.color = this.c(COL.textGold);
     this.label(this.menuLayer, 'SubTitle', '天 下 争 锋', 28, new Vec3(0, L.MENU_TITLE_Y - 30, 0)).color = this.c(COL.text);
-    this.label(this.menuLayer, 'Sub', '官方布局 · 竖屏还原', 16, new Vec3(0, L.MENU_TITLE_Y - 70, 0)).color = this.c(COL.textDim);
-    this.btn(this.menuLayer, 'NewGame', '新游戏', new Vec3(0, L.MENU_BTN1_Y, 0), () => {
+    this.label(this.menuLayer, 'Sub', `构建 ${UI_BUILD_TAG}`, 16, new Vec3(0, L.MENU_TITLE_Y - 70, 0)).color = this.c(COL.textDim);
+
+    const card = new Node('MenuCard');
+    this.menuLayer.addChild(card);
+    card.setPosition(0, L.MENU_CARD_Y, 0);
+    card.addComponent(UITransform).setContentSize(L.MENU_CARD_W, L.MENU_CARD_H);
+    drawPanel(card.addComponent(Graphics), L.MENU_CARD_W, L.MENU_CARD_H, toColor(COL.subPanel), toColor(COL.borderGold), 12);
+    const bar = new Node('MenuCardBar');
+    card.addChild(bar);
+    bar.setPosition(0, L.MENU_CARD_H / 2 - 28, 0);
+    bar.addComponent(UITransform).setContentSize(L.MENU_CARD_W - 48, 4);
+    drawTitleBar(bar.addComponent(Graphics), L.MENU_CARD_W - 48, 0);
+
+    this.btn(card, 'NewGame', '新游戏', new Vec3(0, L.MENU_BTN1_Y, 0), () => {
       this.openSaveSlotPicker(true);
     }, 260, 56);
-    this.btn(this.menuLayer, 'Continue', '继续游戏', new Vec3(0, L.MENU_BTN2_Y, 0), () => {
+    this.btn(card, 'Continue', '继续游戏', new Vec3(0, L.MENU_BTN2_Y, 0), () => {
       this.openSaveSlotPicker(false);
     }, 260, 56);
-    this.menuSaveHint = this.label(this.menuLayer, 'SaveHint', '', 14, new Vec3(0, L.MENU_BTN2_Y - 38, 0), 680);
-    this.menuSaveHint.color = this.c(COL.textDim);
-    this.menuSaveHint.horizontalAlign = Label.HorizontalAlign.CENTER;
-    this.btn(this.menuLayer, 'Settings', '设置', new Vec3(0, L.MENU_BTN3_Y, 0), () => {
+    this.btn(card, 'Settings', '设置', new Vec3(0, L.MENU_BTN3_Y, 0), () => {
       this.settingsReturn = 'menu';
       this.refreshSettingsUI();
       this.showScreen('settings');
     }, 260, 48);
-    this.refreshMenuHints();
-  }
 
-  private refreshMenuHints() {
-    if (!this.menuSaveHint) return;
-    const lines = gameEngine.getAllSaveSlotSummaries();
-    this.menuSaveHint.string = lines.join('\n');
+    const note = this.label(this.menuLayer, 'MenuNote', '存档槽详情在「继续游戏」中选择', 14, new Vec3(0, L.MENU_NOTE_Y, 0), 680);
+    note.color = this.c(COL.textDim);
+    note.horizontalAlign = Label.HorizontalAlign.CENTER;
   }
 
   private openSaveSlotPicker(forNewGame: boolean) {
-    this.clearSubBtns();
-    this.subPanel.active = true;
-    this.subPanel.setPosition(0, L.SUB_PANEL_Y, 0);
-    this.subTitle.string = forNewGame ? '选择存档槽（新游戏）' : '选择存档槽（继续）';
-    this.subInfo.string = '点击槽位开始';
+    this.slotPickerForNew = forNewGame;
+    this.slotPickerTitle!.string = forNewGame ? '选择存档槽 · 新游戏' : '选择存档槽 · 继续';
+    this.slotPickerHint!.string = forNewGame ? '选择一个槽位开始新战役' : '选择一个槽位读取进度';
+    this.rebuildSlotButtons();
+    this.slotPickerPanel.active = true;
+  }
+
+  private slotPickerForNew = true;
+  private slotPickerTitle!: Label;
+  private slotPickerHint!: Label;
+
+  private buildSlotPickerPanel() {
+    this.slotPickerPanel = this.layer('SlotPickerPanel', false);
+    this.panelBg(this.slotPickerPanel, 'Dim', L.W, L.H, 0, { r: 0, g: 0, b: 0, a: 180 }, { r: 0, g: 0, b: 0, a: 0 });
+    const card = new Node('SlotCard');
+    this.slotPickerPanel.addChild(card);
+    card.setPosition(0, 0, 0);
+    card.addComponent(UITransform).setContentSize(L.SLOT_MODAL_W, L.SLOT_MODAL_H);
+    drawModalFrame(card.addComponent(Graphics), L.SLOT_MODAL_W, L.SLOT_MODAL_H);
+    const bar = new Node('SlotBar');
+    card.addChild(bar);
+    bar.setPosition(0, L.SLOT_MODAL_H / 2 - 36, 0);
+    bar.addComponent(UITransform).setContentSize(L.SLOT_MODAL_W - 48, 4);
+    drawTitleBar(bar.addComponent(Graphics), L.SLOT_MODAL_W - 48, 0);
+    this.slotPickerTitle = this.label(card, 'SlotTitle', '', 24, new Vec3(0, L.SLOT_MODAL_H / 2 - 64, 0), 560);
+    this.slotPickerTitle.color = this.c(COL.textGold);
+    this.slotPickerTitle.horizontalAlign = Label.HorizontalAlign.CENTER;
+    this.slotPickerHint = this.label(card, 'SlotHint', '', 14, new Vec3(0, L.SLOT_MODAL_H / 2 - 96, 0), 560);
+    this.slotPickerHint.color = this.c(COL.textDim);
+    this.slotPickerHint.horizontalAlign = Label.HorizontalAlign.CENTER;
+    this.slotBtnContainer = new Node('SlotBtns');
+    card.addChild(this.slotBtnContainer);
+    this.slotBtnContainer.setPosition(0, 20, 0);
+    this.btn(card, 'SlotClose', '返回', new Vec3(0, -L.SLOT_MODAL_H / 2 + 48, 0), () => {
+      this.slotPickerPanel.active = false;
+    }, 200, 48);
+  }
+
+  private rebuildSlotButtons() {
+    this.slotBtnContainer.destroyAllChildren();
     for (let i = 0; i < MAX_SAVE_SLOTS; i++) {
-      const summary = gameEngine.getSaveSummary(i) ?? '（空）';
-      const y = 40 - i * 70;
-      this.btn(this.subBtnContainer, `Slot_${i}`, `槽${i + 1}: ${summary}`, new Vec3(0, y, 0), () => {
+      const summary = gameEngine.getSaveSummary(i);
+      const hasSave = !!summary;
+      const label = summary ? `槽 ${i + 1}    ${summary}` : `槽 ${i + 1}    （空）`;
+      const y = L.SLOT_BTN_START_Y - i * L.SLOT_BTN_GAP;
+      this.btn(this.slotBtnContainer, `Slot_${i}`, label, new Vec3(0, y, 0), () => {
         this.activeSaveSlot = i;
         gameEngine.setSaveSlot(i);
-        if (forNewGame) {
-          this.toast(`将在槽${i + 1}保存`);
-          this.closeSubPanel();
+        if (this.slotPickerForNew) {
+          this.slotPickerPanel.active = false;
           this.showScreen('scenario');
         } else if (gameEngine.loadGameFromSlot(i)) {
           if (this.gameSettings.bgmEnabled) audioManager.startBgm();
-          this.closeSubPanel();
+          this.slotPickerPanel.active = false;
           this.showScreen('map');
           this.refreshMap();
         } else {
           this.toast('该槽位无存档');
         }
-      }, 520, 44);
+      }, 540, 56, false, false, hasSave ? COL.btnHighlight : COL.btn);
     }
-    this.refreshSubFooter();
+  }
+
+  private closeSlotPicker() {
+    this.slotPickerPanel.active = false;
   }
 
   private persistSettings() {
@@ -421,21 +480,20 @@ export class GameRoot extends Component {
       this.persistSettings();
       this.refreshSettingsUI();
     });
-    this.settingsCutsceneBtn = mkRow(40, 'SetCutscene', '战斗过场: 开', () => {
+    this.settingsCutsceneBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 6, 'SetCutscene', '战斗过场: 开', () => {
       this.gameSettings.battleCutscene = !this.gameSettings.battleCutscene;
       this.persistSettings();
       this.refreshSettingsUI();
     });
-    this.settingsTacticalBtn = mkRow(-30, 'SetTactical', '战术战: 开', () => {
+    this.settingsTacticalBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 7, 'SetTactical', '战术战: 开', () => {
       this.gameSettings.tacticalBattle = !this.gameSettings.tacticalBattle;
       this.persistSettings();
       this.refreshSettingsUI();
     });
 
-    this.btn(this.settingsLayer, 'ClearSave', '删除当前槽存档', new Vec3(0, -100, 0), () => {
+    this.btn(this.settingsLayer, 'ClearSave', '删除当前槽存档', new Vec3(0, L.SETTINGS_CLEAR_Y, 0), () => {
       if (gameEngine.hasSaveInSlot(gameEngine.getSaveSlot())) {
         gameEngine.clearSaveSlot(gameEngine.getSaveSlot());
-        this.refreshMenuHints();
         this.toast(`槽${gameEngine.getSaveSlot() + 1} 存档已删除`);
         audioManager.playSuccess();
       } else {
@@ -443,15 +501,15 @@ export class GameRoot extends Component {
       }
     }, 260, 48, false, true);
 
-    this.btn(this.settingsLayer, 'SettingsEditor', '武将编辑', new Vec3(0, -180, 0), () => {
+    this.btn(this.settingsLayer, 'SettingsEditor', '武将编辑', new Vec3(0, L.SETTINGS_EDITOR_Y, 0), () => {
       this.openGeneralEditor();
     }, 260, 48);
 
-    this.btn(this.settingsLayer, 'SettingsMenu', '返回主菜单', new Vec3(0, -260, 0), () => {
+    this.btn(this.settingsLayer, 'SettingsMenu', '返回主菜单', new Vec3(0, L.SETTINGS_MENU_Y, 0), () => {
       this.showScreen('menu');
     }, 200, 44);
 
-    this.btn(this.settingsLayer, 'SettingsBack', '返回', new Vec3(0, -340, 0), () => {
+    this.btn(this.settingsLayer, 'SettingsBack', '返回', new Vec3(0, L.SETTINGS_BACK_Y, 0), () => {
       this.showScreen(this.settingsReturn);
     }, 200, 44);
   }
@@ -553,7 +611,7 @@ export class GameRoot extends Component {
   }
 
   private buildMapScreen() {
-    this.panelBg(this.mapLayer, 'MapBg', L.W, L.MAP_H + 80, L.MAP_CENTER.y, COL.mapBg);
+    this.panelBg(this.mapLayer, 'MapBg', L.MAP_W + 32, L.MAP_H + 16, L.MAP_CENTER.y, COL.mapBg);
     this.panelBg(this.mapLayer, 'MapInner', L.MAP_W, L.MAP_H, L.MAP_CENTER.y, COL.mapInner, COL.mapBorder);
 
     this.mapGridNode = new Node('MapGrid');
@@ -568,33 +626,45 @@ export class GameRoot extends Component {
     terrainNode.addComponent(UITransform).setContentSize(L.MAP_W, L.MAP_H);
     this.mapTerrainNode = terrainNode;
 
-    // 官方顶栏：日期 + 城名
-    this.panelBg(this.mapLayer, 'HeaderBar', L.W, L.HEADER_H + 8, L.HEADER_Y, COL.topBar);
-    this.hudDate = this.label(this.mapLayer, 'HUDDate', '', 18, new Vec3(-260, L.HEADER_Y, 0), 200);
+    // 官方顶栏
+    this.panelBg(this.mapLayer, 'HeaderBar', L.W, L.HEADER_H + 12, L.HEADER_Y, COL.topBar, COL.borderGoldDim);
+    this.hudDate = this.label(this.mapLayer, 'HUDDate', '', 16, new Vec3(-280, L.HEADER_Y, 0), 220);
     this.hudDate.horizontalAlign = Label.HorizontalAlign.LEFT;
-    this.hudCityName = this.label(this.mapLayer, 'HUDCityName', '—', 22, new Vec3(0, L.HEADER_Y, 0), 300);
+    this.hudDate.color = this.c(COL.textDim);
+    this.hudCityName = this.label(this.mapLayer, 'HUDCityName', '—', 24, new Vec3(0, L.HEADER_Y, 0), 280);
     this.hudCityName.color = this.c(COL.textGold);
     this.hudCityName.horizontalAlign = Label.HorizontalAlign.CENTER;
-    this.hudTurnBadge = this.label(this.mapLayer, 'HUDTurn', '', 15, new Vec3(260, L.HEADER_Y, 0), 140);
+    this.hudTurnBadge = this.label(this.mapLayer, 'HUDTurn', '', 14, new Vec3(200, L.HEADER_Y, 0), 280);
     this.hudTurnBadge.horizontalAlign = Label.HorizontalAlign.RIGHT;
 
     // 官方城池状态面板（肖像 + 属性格）
     this.cityStatusPanel = buildCityStatusPanel(this.mapLayer);
 
-    this.panelBg(this.mapLayer, 'LogBar', L.W, L.LOG_H, L.LOG_Y, COL.panelBg);
-    this.panelBg(this.mapLayer, 'CmdBar', L.W, L.CMD_BAR_H, L.CMD_Y, COL.cmdBar);
+    this.mapLogBar = this.panelBg(this.mapLayer, 'LogBar', L.W - 32, L.LOG_H, L.LOG_Y, COL.logBg, COL.borderGoldDim);
+    this.cmdBarNode = this.panelBg(this.mapLayer, 'CmdBar', L.W, L.CMD_BAR_H, L.CMD_Y, COL.cmdBar);
 
-    this.logLabel = this.label(this.mapLayer, 'Log', '', 14, new Vec3(-30, L.LOG_Y, 0), 480, true);
+    this.subDimNode = new Node('SubDim');
+    this.mapLayer.addChild(this.subDimNode);
+    this.subDimNode.setPosition(L.MAP_CENTER.x, L.MAP_CENTER.y, 0);
+    this.subDimNode.addComponent(UITransform).setContentSize(L.MAP_W, L.MAP_H);
+    const dimG = this.subDimNode.addComponent(Graphics);
+    dimG.fillColor = toColor({ r: 0, g: 0, b: 0, a: 150 });
+    dimG.rect(-L.MAP_W / 2, -L.MAP_H / 2, L.MAP_W, L.MAP_H);
+    dimG.fill();
+    this.subDimNode.active = false;
+
+    this.logLabel = this.label(this.mapLayer, 'Log', '', 13, new Vec3(-20, L.LOG_Y, 0), 500);
     this.logLabel.color = this.c(COL.textDim);
-    this.btn(this.mapLayer, 'LogUp', '▲', new Vec3(250, L.LOG_Y + 18, 0), () => this.scrollLogBar(-1), 36, 28);
-    this.btn(this.mapLayer, 'LogDown', '▼', new Vec3(250, L.LOG_Y - 18, 0), () => this.scrollLogBar(1), 36, 28);
-    this.btn(this.mapLayer, 'LogMore', '详', new Vec3(300, L.LOG_Y, 0), () => this.openLogPanel(), 36, 36);
+    this.logLabel.horizontalAlign = Label.HorizontalAlign.LEFT;
+    this.btn(this.mapLayer, 'LogMore', '日志', new Vec3(300, L.LOG_Y, 0), () => this.openLogPanel(), 56, 32);
 
     // 官方右侧竖栏
-    this.btn(this.mapLayer, 'SideInfo', '情报', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y1, 0), () => this.openSideIntel(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, false, false, COL.sidebarBtn);
-    this.btn(this.mapLayer, 'SideFunc', '功能', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y2, 0), () => this.openSideFunc(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, false, false, COL.sidebarBtn);
-    this.btn(this.mapLayer, 'SideRoster', '武将', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y3, 0), () => this.openRosterPanel(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, false, false, COL.sidebarBtn);
-    this.btn(this.mapLayer, 'SideGo', '进行', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y4, 0), () => this.onEndTurn(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, true, false, COL.sidebarBtn);
+    this.sidebarBtns = [
+      this.btn(this.mapLayer, 'SideInfo', '情报', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y1, 0), () => this.openSideIntel(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, false, false, COL.sidebarBtn),
+      this.btn(this.mapLayer, 'SideFunc', '功能', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y2, 0), () => this.openSideFunc(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, false, false, COL.sidebarBtn),
+      this.btn(this.mapLayer, 'SideRoster', '武将', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y3, 0), () => this.openRosterPanel(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, false, false, COL.sidebarBtn),
+      this.btn(this.mapLayer, 'SideGo', '进行', new Vec3(L.SIDEBAR_X, L.SIDEBAR_Y4, 0), () => this.onEndTurn(), L.SIDEBAR_BTN_W, L.SIDEBAR_BTN_H, true, false, COL.sidebarBtn),
+    ];
 
     CMD_CATEGORIES.forEach((cat, i) => {
       const node = this.btn(
@@ -605,12 +675,10 @@ export class GameRoot extends Component {
         () => this.onCategory(cat),
         L.CMD_BTN_W,
         L.CMD_BTN_H,
-        false,
-        false,
-        CAT_COL[cat],
       );
       this.cmdBtns.set(cat, node);
     });
+    this.refreshCmdHighlight();
 
     const mapContainer = new Node('MapContainer');
     this.mapLayer.addChild(mapContainer);
@@ -763,7 +831,9 @@ export class GameRoot extends Component {
   }
 
   private buildSubPanel() {
-    this.panelBg(this.subPanel, 'SubBg', L.W, L.SUB_PANEL_H, 0, COL.subPanel);
+    this.panelBg(this.subPanel, 'SubBg', L.W, L.SUB_PANEL_H, 0, COL.subPanel, COL.borderGold);
+    const inner = this.panelBg(this.subPanel, 'SubInner', L.W - 24, L.SUB_PANEL_H - 56, -8, COL.subPanelInner, COL.borderGoldDim);
+    inner.setPosition(0, -8, 0);
     const bar = new Node('SubTitleBar');
     this.subPanel.addChild(bar);
     bar.setPosition(0, L.SUB_TITLE_Y + 8, 0);
@@ -771,15 +841,19 @@ export class GameRoot extends Component {
     drawTitleBar(bar.addComponent(Graphics), L.W - 40, 0);
     this.subTitle = this.label(this.subPanel, 'SubTitle', '', 22, new Vec3(0, L.SUB_TITLE_Y, 0), 640);
     this.subTitle.color = this.c(COL.textGold);
-    this.subInfo = this.label(this.subPanel, 'SubInfo', '', 15, new Vec3(0, L.SUB_INFO_Y, 0), 660, true);
+    this.subInfo = this.label(this.subPanel, 'SubInfo', '', 13, new Vec3(0, L.SUB_INFO_Y, 0), 660);
     this.subInfo.color = this.c(COL.textDim);
+    this.subInfo.horizontalAlign = Label.HorizontalAlign.CENTER;
+    this.subInfo.overflow = Label.Overflow.CLAMP;
+    this.subInfo.node.getComponent(UITransform)!.setContentSize(660, L.SUB_INFO_H);
     this.subBtnContainer = new Node('SubBtns');
     this.subPanel.addChild(this.subBtnContainer);
     this.subBtnContainer.setPosition(0, L.SUB_BTNS_Y, 0);
     this.subFooter = new Node('SubFooter');
     this.subPanel.addChild(this.subFooter);
     this.subFooter.setPosition(0, L.SUB_FOOTER_Y, 0);
-    this.btn(this.subPanel, 'SubLog', '日志', new Vec3(-280, L.SUB_TITLE_Y, 0), () => this.openLogPanel(), 72, 36);
+    this.subLogBtn = this.btn(this.subPanel, 'SubLog', '日志', new Vec3(-280, L.SUB_TITLE_Y, 0), () => this.openLogPanel(), 72, 36);
+    this.subLogBtn.active = false;
   }
 
   private buildLogPanel() {
@@ -1041,9 +1115,11 @@ export class GameRoot extends Component {
     drawModalFrame(frame.addComponent(Graphics), 660, 900);
     this.deployPortraitSlot = new Node('DeployPortrait');
     this.deployPanel.addChild(this.deployPortraitSlot);
-    this.deployPortraitSlot.setPosition(-260, 320, 0);
+    this.deployPortraitSlot.setPosition(L.DEPLOY_PORTRAIT_X, L.DEPLOY_PORTRAIT_Y, 0);
     this.label(this.deployPanel, 'Title', '出  兵', 30, new Vec3(0, L.MODAL_TITLE_Y, 0)).color = this.c(COL.textGold);
-    this.label(this.deployPanel, 'DeployInfo', '', 18, new Vec3(0, L.MODAL_BODY_Y, 0), 680).node.name = 'DeployInfo';
+    this.label(this.deployPanel, 'DeploySecLabel', '主将 / 副将 / 兵力', 13, new Vec3(L.DEPLOY_CTRL_X, 348, 0), 360).color = this.c(COL.textDim);
+    this.label(this.deployPanel, 'DeployTacLabel', '策略选项', 13, new Vec3(L.DEPLOY_CTRL_X, 198, 0), 200).color = this.c(COL.textDim);
+    const deployInfoNode = this.label(this.deployPanel, 'DeployInfo', '', 16, new Vec3(0, 120, 0), 560, true);
     this.btn(this.deployPanel, 'CloseDeploy', '取消', new Vec3(0, L.MODAL_BTN_Y, 0), () => {
       this.deployPanel.active = false;
       this.clearDeployExtras();
@@ -1058,7 +1134,9 @@ export class GameRoot extends Component {
     frame.addComponent(UITransform).setContentSize(640, 720);
     drawModalFrame(frame.addComponent(Graphics), 640, 720);
     this.label(this.battlePanel, 'Title', '战  斗  报  告', 30, new Vec3(0, L.MODAL_TITLE_Y, 0)).color = this.c(COL.textGold);
-    this.label(this.battlePanel, 'Report', '', 18, new Vec3(0, L.MODAL_BODY_Y, 0), 680).node.name = 'BattleReport';
+    const reportLb = this.label(this.battlePanel, 'Report', '', 17, new Vec3(0, L.MODAL_BODY_Y, 0), 580, true);
+    reportLb.lineHeight = 26;
+    reportLb.horizontalAlign = Label.HorizontalAlign.LEFT;
     this.btn(this.battlePanel, 'CloseBattle', '确定', new Vec3(0, L.MODAL_BTN_Y, 0), () => {
       this.battlePanel.active = false;
       this.refreshMap();
@@ -1135,6 +1213,7 @@ export class GameRoot extends Component {
     this.mapLayer.active = s === 'map';
     this.endLayer.active = s === 'end';
     this.logPanel.active = false;
+    this.slotPickerPanel.active = false;
     this.funcPanel.active = false;
     this.statsPanel.active = false;
     this.tutorialPanel.active = false;
@@ -1143,7 +1222,6 @@ export class GameRoot extends Component {
     this.confirmPanel.active = false;
     this.genInfoPanel.active = false;
     this.closeSubPanel();
-    if (s === 'menu') this.refreshMenuHints();
     if (s === 'map') {
       this.refreshMap();
       this.maybeShowTutorial();
@@ -1152,12 +1230,33 @@ export class GameRoot extends Component {
     this.battlePanel.active = false;
   }
 
+  private setMapLogVisible(visible: boolean) {
+    if (this.mapLogBar) this.mapLogBar.active = visible;
+    if (this.logLabel) this.logLabel.node.active = visible;
+    const more = this.mapLayer.getChildByName('LogMore');
+    if (more) more.active = visible;
+  }
+
+  private setMapCmdVisible(visible: boolean) {
+    if (this.cmdBarNode) this.cmdBarNode.active = visible;
+    this.cmdBtns.forEach((node) => { node.active = visible; });
+  }
+
+  private setMapSidebarVisible(visible: boolean) {
+    this.sidebarBtns.forEach((node) => { node.active = visible; });
+  }
+
   private closeSubPanel() {
     this.subPanel.active = false;
     this.subPanel.setPosition(0, L.SUB_PANEL_Y, 0);
+    if (this.subDimNode) this.subDimNode.active = false;
     this.activeCategory = null;
     this.clearSubBtns();
     this.refreshCmdHighlight();
+    if (this.subLogBtn) this.subLogBtn.active = false;
+    this.setMapLogVisible(true);
+    this.setMapCmdVisible(true);
+    this.setMapSidebarVisible(true);
   }
 
   private refreshCmdHighlight() {
@@ -1168,17 +1267,7 @@ export class GameRoot extends Component {
       if (!g) return;
       g.clear();
       const active = this.activeCategory === cat;
-      if (active) {
-        drawButton(g, L.CMD_BTN_W, L.CMD_BTN_H, true);
-      } else {
-        g.fillColor = toColor(CAT_COL[cat]);
-        g.roundRect(-L.CMD_BTN_W / 2, -L.CMD_BTN_H / 2, L.CMD_BTN_W, L.CMD_BTN_H - 3, 8);
-        g.fill();
-        g.strokeColor = toColor(COL.borderGold);
-        g.lineWidth = 1;
-        g.roundRect(-L.CMD_BTN_W / 2, -L.CMD_BTN_H / 2, L.CMD_BTN_W, L.CMD_BTN_H - 3, 8);
-        g.stroke();
-      }
+      drawCategoryButton(g, L.CMD_BTN_W, L.CMD_BTN_H, CAT_COL[cat], active);
     });
   }
 
@@ -1206,9 +1295,9 @@ export class GameRoot extends Component {
     this.hudDate.string = `${state.year}年${state.month}月  第${state.turn}回合`;
     const city = this.selectedCityId ? findCity(state, this.selectedCityId) : null;
     this.hudCityName.string = city?.name ?? '— 请选择城池 —';
-    const turnText = state.phase === 'player' ? '▶ 我方' : '▶ 电脑';
-    this.hudTurnBadge.string = `${turnText}  金${gold} 粮${food} 城${cities}`;
-    this.hudTurnBadge.color = state.phase === 'player' ? this.c(COL.turnPlayer) : this.c(COL.turnAi);
+    const turnText = state.phase === 'player' ? '我方回合' : '电脑回合';
+    this.hudTurnBadge.string = `${turnText}  金${gold}  粮${food}  ${cities}城`;
+    this.hudTurnBadge.color = state.phase === 'player' ? this.c(COL.resGold) : this.c(COL.turnAi);
 
     if (this.cityStatusPanel) {
       refreshCityStatusPanel(this.cityStatusPanel, state, this.selectedCityId);
@@ -1324,7 +1413,6 @@ export class GameRoot extends Component {
       this.selectedCityId = cityId;
       this.closeSubPanel();
       this.refreshMap();
-      this.toast(`已选 ${city.name}，请选择下方命令`);
     } else {
       const wilds = state.wildGenerals.filter((w) => w.cityId === cityId);
       const wildHint = wilds.length ? ` · 在野${wilds.map((w) => w.name).join('、')}` : '';
@@ -1352,17 +1440,31 @@ export class GameRoot extends Component {
     }
     this.activeCategory = cat;
     this.refreshCmdHighlight();
+    this.setMapLogVisible(false);
+    this.setMapCmdVisible(false);
+    this.setMapSidebarVisible(false);
+    if (this.subDimNode) {
+      this.subDimNode.active = true;
+      this.subDimNode.setSiblingIndex(this.mapLayer.children.length - 1);
+    }
     this.subPanel.active = true;
-    this.subPanel.setPosition(0, L.SUB_PANEL_Y - 60, 0);
+    this.subPanel.setSiblingIndex(this.mapLayer.children.length - 1);
+    this.subPanel.setPosition(0, L.SUB_PANEL_Y - 48, 0);
     tween(this.subPanel)
       .to(0.18, { position: new Vec3(0, L.SUB_PANEL_Y, 0) }, { easing: 'quadOut' })
       .start();
     this.subTitle.string = `${city.name} · ${cat}`;
-    this.subInfo.string = gameEngine.getCityStateBrief(this.selectedCityId);
     this.subGeneralId = null;
+    this.genPickerPage = 0;
     this.clearSubBtns();
+    const usesPicker = cat === '人才' || cat === '计谋';
+    this.subInfo.string = usesPicker
+      ? '① 点选武将  ② 点下方命令执行'
+      : gameEngine.getCityStateBrief(this.selectedCityId);
+    this.subInfo.node.active = true;
     this.buildCategoryButtons(cat, city);
-    if (cat !== '人才' && cat !== '计谋') this.refreshSubFooter();
+    if (!usesPicker) this.refreshSubFooter();
+    if (this.subLogBtn) this.subLogBtn.active = true;
   }
 
   private refreshSubFooter(onConfirm?: () => void) {
@@ -1390,20 +1492,16 @@ export class GameRoot extends Component {
   }
 
   /** 子面板武将列表（肖像 + 四维） */
-  private buildGeneralPicker(gens: General[], startY: number, onPick: (id: string) => void) {
+  private buildGeneralPicker(gens: General[], onPick: (id: string) => void) {
     const state = gameEngine.state!;
     const usable = gens.filter((g) => g.status !== 'marching');
     if (!this.subGeneralId && usable.length) this.subGeneralId = usable[0].id;
 
-    const hint = new Node('PickerHint');
-    this.subBtnContainer.addChild(hint);
-    hint.setPosition(0, startY + 36, 0);
-    hint.addComponent(UITransform).setContentSize(L.GEN_LIST_W, 20);
-    const hl = hint.addComponent(Label);
-    hl.string = '请选择目标武将';
-    hl.fontSize = 13;
-    hl.color = this.c(COL.textDim);
-    hl.horizontalAlign = Label.HorizontalAlign.CENTER;
+    this.subInfo.node.active = false;
+
+    const sortY = L.SUB_SORT_Y;
+    const listTopY = L.SUB_LIST_TOP_Y;
+    const rowGap = L.GEN_LIST_ROW_H + 8;
 
     const sortFn = (a: General, b: General) => {
       if (this.genPickerSort === 'intelligence') return b.intelligence - a.intelligence;
@@ -1411,29 +1509,29 @@ export class GameRoot extends Component {
       return b.force - a.force;
     };
     const sorted = [...usable].sort(sortFn);
-    const pageSize = 4;
+    const pageSize = 2;
     const page = Math.min(this.genPickerPage, Math.max(0, Math.ceil(sorted.length / pageSize) - 1));
     this.genPickerPage = page;
 
     [['武力', 'force'], ['智力', 'intelligence'], ['忠诚', 'loyalty']].forEach(([label, key], i) => {
-      const x = (i - 1) * 100;
-      this.btn(this.subBtnContainer, `Sort_${key}`, label, new Vec3(x, startY + 58, 0), () => {
+      const x = (i - 1) * 108;
+      this.btn(this.subBtnContainer, `Sort_${key}`, label, new Vec3(x, sortY, 0), () => {
         this.genPickerSort = key as typeof this.genPickerSort;
         onPick('');
-      }, 80, 28, this.genPickerSort === key);
+      }, 88, 30, this.genPickerSort === key);
     });
 
     if (page > 0) {
-      this.btn(this.subBtnContainer, 'PrevPage', '上一页', new Vec3(-260, startY + 30, 0), () => {
+      this.btn(this.subBtnContainer, 'PrevPage', '◀', new Vec3(-280, sortY, 0), () => {
         this.genPickerPage = Math.max(0, page - 1);
         onPick('');
-      }, 72, 28);
+      }, 40, 30);
     }
     if ((page + 1) * pageSize < sorted.length) {
-      this.btn(this.subBtnContainer, 'NextPage', '下一页', new Vec3(260, startY + 30, 0), () => {
+      this.btn(this.subBtnContainer, 'NextPage', '▶', new Vec3(280, sortY, 0), () => {
         this.genPickerPage = page + 1;
         onPick('');
-      }, 72, 28);
+      }, 40, 30);
     }
 
     sorted.slice(page * pageSize, page * pageSize + pageSize).forEach((g, i) => {
@@ -1443,7 +1541,7 @@ export class GameRoot extends Component {
         g,
         faction?.color ?? '#888888',
         g.id === this.subGeneralId,
-        startY - i * (L.GEN_LIST_ROW_H + 4),
+        listTopY - i * rowGap,
         () => {
           this.subGeneralId = g.id;
           onPick(g.id);
@@ -1479,17 +1577,17 @@ export class GameRoot extends Component {
         break;
       case '军事': {
         const eff = Math.floor(getRecruitEfficiency(gameEngine.state!, city.id) * 100);
-        this.subInfo.string += `\n征兵效率 ${eff}%`;
+        this.subInfo.string = `${gameEngine.getCityStateBrief(city.id)}  ·  征兵${eff}%`;
         row([
           ['征兵50', () => this.doRecruit(50)],
           ['征兵100', () => this.doRecruit(100)],
           ['自定义', () => this.cycleCustomRecruit(city.id)],
           ['最大', () => this.doRecruitMax()],
-        ], 35);
+        ], 50);
         row([
           ['出兵', () => this.openDeploy()],
           ['运输', () => this.openTransportMenu()],
-        ], -35);
+        ], -10);
         break;
       }
       case '人才': {
@@ -1512,25 +1610,26 @@ export class GameRoot extends Component {
           break;
         }
         const rebuild = () => this.buildCategoryButtons('人才', city);
-        this.buildGeneralPicker(gens, 70, () => rebuild());
+        this.buildGeneralPicker(gens, () => rebuild());
         const gid = () => this.subGeneralId ?? gens[0].id;
         row([
           ['赏赐', () => this.act(() => gameEngine.rewardGeneral(gid(), city.id))],
           ['任命太守', () => this.act(() => gameEngine.appointGovernor(city.id, gid()))],
           ['搜索', () => this.act(() => gameEngine.searchTalent(city.id))],
-        ], -95);
-        wilds.forEach((w, i) => {
-          const x = (i - (wilds.length - 1) / 2) * 150;
-          this.btn(this.subBtnContainer, `Wild_${w.id}`, `登用${w.name}(${w.recruitGold}金)`, new Vec3(x, -140, 0), () => {
-            this.act(() => gameEngine.recruitWild(city.id, w.id));
-          }, 150, 36);
+        ], L.SUB_ACTION_Y);
+        const extras: [string, () => void][] = [];
+        wilds.forEach((w) => {
+          extras.push([`登用${w.name}`, () => this.act(() => gameEngine.recruitWild(city.id, w.id))]);
         });
-        const allies = city.neighbors.map((id) => findCity(state, id)).filter((c) => c.factionId === state.playerFactionId);
-        allies.forEach((to, i) => {
-          const x = (i - (allies.length - 1) / 2) * 130;
-          this.btn(this.subBtnContainer, `Move_${to.id}`, `移至${to.name}`, new Vec3(x, -140, 0), () => {
-            this.act(() => gameEngine.moveGeneral(gid(), to.id));
-          }, 120, 36);
+        city.neighbors
+          .map((id) => findCity(state, id))
+          .filter((c) => c.factionId === state.playerFactionId)
+          .forEach((to) => {
+            extras.push([`移至${to.name}`, () => this.act(() => gameEngine.moveGeneral(gid(), to.id))]);
+          });
+        extras.forEach(([text, cb], i) => {
+          const x = (i - (extras.length - 1) / 2) * 132;
+          this.btn(this.subBtnContainer, `Extra_${i}_${text}`, text, new Vec3(x, L.SUB_EXTRA_Y, 0), cb, 120, 34);
         });
         break;
       }
@@ -1543,25 +1642,21 @@ export class GameRoot extends Component {
           return;
         }
         const rebuild = () => this.buildCategoryButtons('计谋', city);
-        this.buildGeneralPicker(gens, 70, () => rebuild());
+        this.buildGeneralPicker(gens, () => rebuild());
         const gid = () => this.subGeneralId ?? gens[0].id;
         row([
           ['鼓舞', () => this.actStratagem(() => gameEngine.inspire(city.id, gid()))],
-        ], -50);
-        enemies.forEach((e, i) => {
-          const x = (i - (enemies.length - 1) / 2) * 155;
-          this.btn(this.subBtnContainer, `Fire_${e.id}`, `火计→${e.name}`, new Vec3(x, -95, 0), () => {
-            this.actStratagem(() => gameEngine.fireAttack(city.id, gid(), e.id));
-          }, 130, 36);
-          this.btn(this.subBtnContainer, `Discord_${e.id}`, `离间→${e.name}`, new Vec3(x, -137, 0), () => {
-            this.actStratagem(() => gameEngine.sowDiscord(city.id, gid(), e.id));
-          }, 130, 36);
-          this.btn(this.subBtnContainer, `Disrupt_${e.id}`, `扰乱→${e.name}`, new Vec3(x, -179, 0), () => {
-            this.actStratagem(() => gameEngine.disrupt(city.id, gid(), e.id));
-          }, 130, 36);
-          this.btn(this.subBtnContainer, `Fake_${e.id}`, `伪报→${e.name}`, new Vec3(x, -221, 0), () => {
-            this.actStratagem(() => gameEngine.fakeReport(city.id, gid(), e.id));
-          }, 130, 36);
+        ], L.SUB_ACTION_Y);
+        enemies.forEach((e, ei) => {
+          const y = L.SUB_EXTRA_Y - ei * 42;
+          const mk = (text: string, cb: () => void, bi: number) => {
+            const x = (bi - 1.5) * 128;
+            this.btn(this.subBtnContainer, `${text}_${e.id}`, `${text}·${e.name}`, new Vec3(x, y, 0), cb, 118, 30);
+          };
+          mk('火计', () => this.actStratagem(() => gameEngine.fireAttack(city.id, gid(), e.id)), 0);
+          mk('离间', () => this.actStratagem(() => gameEngine.sowDiscord(city.id, gid(), e.id)), 1);
+          mk('扰乱', () => this.actStratagem(() => gameEngine.disrupt(city.id, gid(), e.id)), 2);
+          mk('伪报', () => this.actStratagem(() => gameEngine.fakeReport(city.id, gid(), e.id)), 3);
         });
         break;
       }
@@ -1570,11 +1665,11 @@ export class GameRoot extends Component {
           (f) => f.id !== city.factionId && !f.isEliminated,
         )) || [];
         others.forEach((f, i) => {
-          const y = 30 - i * 55;
-          this.btn(this.subBtnContainer, `Dip_a_${f.id}`, `同盟${f.name}`, new Vec3(-200, y, 0), () => this.act(() => gameEngine.alliance(f.id)), 110, 38);
-          this.btn(this.subBtnContainer, `Dip_t_${f.id}`, `停战${f.name}`, new Vec3(-40, y, 0), () => this.act(() => gameEngine.truce(f.id)), 110, 38);
-          this.btn(this.subBtnContainer, `Dip_w_${f.id}`, `宣战${f.name}`, new Vec3(120, y, 0), () => this.act(() => gameEngine.declareWar(f.id)), 110, 38);
-          this.btn(this.subBtnContainer, `Dip_g_${f.id}`, `赠礼${f.name}`, new Vec3(260, y, 0), () => this.act(() => gameEngine.gift(f.id, city.id)), 110, 38);
+          const y = L.SUB_DIP_START_Y - i * L.SUB_DIP_ROW_GAP;
+          this.btn(this.subBtnContainer, `Dip_a_${f.id}`, `同盟${f.name}`, new Vec3(-200, y, 0), () => this.act(() => gameEngine.alliance(f.id)), 110, 36);
+          this.btn(this.subBtnContainer, `Dip_t_${f.id}`, `停战${f.name}`, new Vec3(-40, y, 0), () => this.act(() => gameEngine.truce(f.id)), 110, 36);
+          this.btn(this.subBtnContainer, `Dip_w_${f.id}`, `宣战${f.name}`, new Vec3(120, y, 0), () => this.act(() => gameEngine.declareWar(f.id)), 110, 36);
+          this.btn(this.subBtnContainer, `Dip_g_${f.id}`, `赠礼${f.name}`, new Vec3(260, y, 0), () => this.act(() => gameEngine.gift(f.id, city.id)), 110, 36);
         });
         break;
       }
@@ -1701,7 +1796,8 @@ export class GameRoot extends Component {
     this.deployPanel.children.filter((c) =>
       c.name.startsWith('Target_') || c.name.startsWith('Gen_') ||
       c.name.startsWith('Ratio_') || c.name.startsWith('Ambush_') ||
-      c.name.startsWith('Duel_') || c.name.startsWith('Sec_'),
+      c.name.startsWith('Duel_') || c.name.startsWith('Sec_') ||
+      c.name === 'NoTarget',
     ).forEach((c) => c.destroy());
   }
 
@@ -1715,9 +1811,9 @@ export class GameRoot extends Component {
       gen,
       '',
       faction?.color ?? '#888888',
-      'left',
-      100,
-      130,
+      'embed',
+      96,
+      120,
     );
     node.setPosition(0, 0, 0);
     const tag = this.genStatus(gen);
@@ -1751,57 +1847,68 @@ export class GameRoot extends Component {
       info.string = `从 ${from.name} 出兵\n武将 ${gen.name}  兵力 ${troops}/${from.troops}${estText}`;
     }
 
+    const cx = L.DEPLOY_CTRL_X;
     gens.forEach((g, i) => {
-      const x = (i - (gens.length - 1) / 2) * 130;
-      this.btn(this.deployPanel, `Gen_${g.id}`, g.name, new Vec3(x, 300, 0), () => {
+      const x = cx + (i - (gens.length - 1) / 2) * 118;
+      this.btn(this.deployPanel, `Gen_${g.id}`, g.name, new Vec3(x, 320, 0), () => {
         this.deployGeneralId = g.id;
         if (this.deploySecondaryId === g.id) this.deploySecondaryId = null;
         this.refreshDeployPanel(from, gens);
-      }, 110, 38, g.id === this.deployGeneralId);
+      }, 104, 36, g.id === this.deployGeneralId);
     });
 
     const secCandidates = gens.filter((g) => g.id !== this.deployGeneralId);
     if (secCandidates.length) {
-      this.btn(this.deployPanel, 'Sec_none', this.deploySecondaryId ? '副将:无' : '副将:无', new Vec3(-200, 260, 0), () => {
+      this.btn(this.deployPanel, 'Sec_none', '副将:无', new Vec3(cx - 120, 272, 0), () => {
         this.deploySecondaryId = null;
         this.refreshDeployPanel(from, gens);
-      }, 100, 32, !this.deploySecondaryId);
+      }, 96, 30, !this.deploySecondaryId);
       secCandidates.forEach((g, i) => {
-        const x = -100 + i * 110;
-        this.btn(this.deployPanel, `Sec_${g.id}`, g.name, new Vec3(x, 260, 0), () => {
+        const x = cx - 20 + i * 108;
+        this.btn(this.deployPanel, `Sec_${g.id}`, g.name, new Vec3(x, 272, 0), () => {
           this.deploySecondaryId = g.id;
           this.refreshDeployPanel(from, gens);
-        }, 100, 32, g.id === this.deploySecondaryId);
+        }, 96, 30, g.id === this.deploySecondaryId);
       });
     }
 
     [[0.5, '半数'], [0.7, '七成'], [1.0, '全军']].forEach(([ratio, label], i) => {
-      const x = (i - 1) * 140;
-      this.btn(this.deployPanel, `Ratio_${ratio}`, label as string, new Vec3(x, 240, 0), () => {
+      const x = cx + (i - 1) * 128;
+      this.btn(this.deployPanel, `Ratio_${ratio}`, label as string, new Vec3(x, 224, 0), () => {
         this.deployTroopRatio = ratio as number;
         this.refreshDeployPanel(from, gens);
-      }, 100, 36, this.deployTroopRatio === ratio);
+      }, 96, 34, this.deployTroopRatio === ratio);
     });
 
-    this.btn(this.deployPanel, 'Ambush_toggle', this.deployUseAmbush ? '伏兵:开' : '伏兵:关', new Vec3(-100, 180, 0), () => {
+    this.btn(this.deployPanel, 'Ambush_toggle', this.deployUseAmbush ? '伏兵:开' : '伏兵:关', new Vec3(cx - 70, 176, 0), () => {
       this.deployUseAmbush = !this.deployUseAmbush;
       this.refreshDeployPanel(from, gens);
-    }, 120, 36, this.deployUseAmbush);
+    }, 112, 34, this.deployUseAmbush);
 
-    this.btn(this.deployPanel, 'Duel_toggle', this.deployTryDuel ? '一骑讨:开' : '一骑讨:关', new Vec3(100, 180, 0), () => {
+    this.btn(this.deployPanel, 'Duel_toggle', this.deployTryDuel ? '一骑讨:开' : '一骑讨:关', new Vec3(cx + 90, 176, 0), () => {
       this.deployTryDuel = !this.deployTryDuel;
       this.refreshDeployPanel(from, gens);
-    }, 120, 36, this.deployTryDuel);
+    }, 112, 34, this.deployTryDuel);
 
     this.clearDeployTargets();
     const enemies = from.neighbors.map((id) => findCity(state, id)).filter((c) => c.factionId !== state.playerFactionId);
     enemies.forEach((t, i) => {
-      const y = 60 - i * 52;
-      this.btn(this.deployPanel, `Target_${t.id}`, `进攻 ${t.name}（${this.fname(state, t.factionId)} ${t.troops}兵）`, new Vec3(0, y, 0), () => {
+      const y = 40 - i * 48;
+      this.btn(this.deployPanel, `Target_${t.id}`, `进攻 ${t.name}（${this.fname(state, t.factionId)} · ${t.troops}兵）`, new Vec3(0, y, 0), () => {
         this.launchAttack(t.id);
-      }, 400, 42);
+      }, 420, 40);
     });
-    if (!enemies.length) this.toast('无相邻敌城');
+    if (!enemies.length) {
+      const hint = new Node('NoTarget');
+      this.deployPanel.addChild(hint);
+      hint.setPosition(0, 40, 0);
+      hint.addComponent(UITransform).setContentSize(400, 36);
+      const lb = hint.addComponent(Label);
+      lb.string = '无相邻敌城';
+      lb.fontSize = 16;
+      lb.color = this.c(COL.textDim);
+      lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+    }
   }
 
   private clearDeployTargets() {
@@ -1896,14 +2003,7 @@ export class GameRoot extends Component {
 
   private showBattleReport(result: BattleResult) {
     this.battlePanel.active = true;
-    this.setLabelText(this.battlePanel, 'Report', '');
-    const lines = result.log;
-    lines.forEach((line, i) => {
-      this.scheduleOnce(() => {
-        const prev = this.getLabel(this.battlePanel, 'Report')?.string ?? '';
-        this.setLabelText(this.battlePanel, 'Report', prev ? `${prev}\n${line}` : line);
-      }, i * 0.28);
-    });
+    this.setLabelText(this.battlePanel, 'Report', result.log.join('\n'));
   }
 
   private onEndTurn() {

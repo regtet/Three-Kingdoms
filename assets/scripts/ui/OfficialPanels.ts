@@ -4,7 +4,7 @@ import { getCityStateView } from '../core/utils/cityState';
 import { findCity } from '../core/utils/helpers';
 import { COL, L } from './OfficialLayout';
 import { createPortraitDisplay } from './GeneralPortrait';
-import { drawPanel, toColor } from './UiDraw';
+import { drawListRow, drawPanel, drawStatField, drawSidebarButton, toColor } from './UiDraw';
 
 const DISASTER: Record<string, string> = {
   none: '无', flood: '水灾', plague: '瘟疫', locusts: '蝗灾',
@@ -16,24 +16,17 @@ function statField(parent: Node, label: string, value: string, x: number, y: num
   parent.addChild(n);
   n.setPosition(x, y, 0);
   n.addComponent(UITransform).setContentSize(w, h);
-  const g = n.addComponent(Graphics);
-  g.fillColor = toColor(COL.fieldBg);
-  g.roundRect(-w / 2, -h / 2, w, h, 3);
-  g.fill();
-  g.strokeColor = toColor({ r: 140, g: 145, b: 155, a: 255 });
-  g.lineWidth = 1;
-  g.roundRect(-w / 2, -h / 2, w, h, 3);
-  g.stroke();
+  drawStatField(n.addComponent(Graphics), w, h);
   const lb = new Node('Val');
   n.addChild(lb);
   lb.setPosition(0, 0, 0);
   lb.addComponent(UITransform).setContentSize(w - 8, h);
   const l = lb.addComponent(Label);
   l.string = `${label} ${value}`;
-  l.fontSize = 13;
+  l.fontSize = 12;
   l.lineHeight = 16;
   l.horizontalAlign = Label.HorizontalAlign.CENTER;
-  l.color = toColor(COL.textDark);
+  l.color = toColor(COL.fieldValue);
 }
 
 /** 构建官方城池状态面板（顶栏下方） */
@@ -43,7 +36,7 @@ export function buildCityStatusPanel(parent: Node, localY: number = L.CITY_PANEL
   panel.setPosition(0, localY, 0);
   panel.addComponent(UITransform).setContentSize(L.W - 20, L.CITY_PANEL_H);
   const bg = panel.addComponent(Graphics);
-  drawPanel(bg, L.W - 20, L.CITY_PANEL_H, toColor(COL.cityPanel), toColor({ r: 100, g: 105, b: 115, a: 255 }), 4);
+  drawPanel(bg, L.W - 20, L.CITY_PANEL_H, toColor(COL.cityPanel), toColor(COL.borderGoldDim), 6);
 
   const portraitSlot = new Node('GovPortrait');
   panel.addChild(portraitSlot);
@@ -76,12 +69,12 @@ export function refreshCityStatusPanel(panel: Node, state: GameState, cityId: st
   const faction = state.factions.find((f) => f.id === c.factionId);
 
   if (gov && portraitSlot) {
-    const node = createPortraitDisplay(portraitSlot, gov, '', faction?.color ?? '#888', 'left', 90, 120);
+    const node = createPortraitDisplay(portraitSlot, gov, '', faction?.color ?? '#888', 'embed', 72, 88);
     node.setPosition(0, 0, 0);
   }
 
-  const fw = 130;
-  const fh = 28;
+  const fw = 128;
+  const fh = 24;
   const rows: [string, string][] = [
     ['势力', view.factionName],
     ['太守', view.governor?.name ?? '无'],
@@ -100,8 +93,8 @@ export function refreshCityStatusPanel(panel: Node, state: GameState, cityId: st
   rows.forEach(([label, val], i) => {
     const col = i % 3;
     const row = Math.floor(i / 3);
-    const x = -140 + col * (fw + 8);
-    const y = 40 - row * (fh + 6);
+    const x = -138 + col * (fw + 6);
+    const y = 28 - row * (fh + 4);
     statField(fields, label, val, x, y, fw, fh);
   });
 }
@@ -195,20 +188,13 @@ export function buildGeneralListRow(
   parent.addChild(row);
   row.setPosition(0, y, 0);
   row.addComponent(UITransform).setContentSize(L.GEN_LIST_W, L.GEN_LIST_ROW_H);
-  const g = row.addComponent(Graphics);
-  g.fillColor = toColor(selected ? { r: 90, g: 100, b: 130, a: 255 } : { r: 50, g: 55, b: 68, a: 255 });
-  g.roundRect(-L.GEN_LIST_W / 2, -L.GEN_LIST_ROW_H / 2, L.GEN_LIST_W, L.GEN_LIST_ROW_H, 4);
-  g.fill();
-  g.strokeColor = toColor(selected ? COL.borderGold : { r: 100, g: 105, b: 115, a: 255 });
-  g.lineWidth = selected ? 2 : 1;
-  g.roundRect(-L.GEN_LIST_W / 2, -L.GEN_LIST_ROW_H / 2, L.GEN_LIST_W, L.GEN_LIST_ROW_H, 4);
-  g.stroke();
+  drawListRow(row.addComponent(Graphics), L.GEN_LIST_W, L.GEN_LIST_ROW_H, selected);
 
   const portraitSlot = new Node('Portrait');
   row.addChild(portraitSlot);
   portraitSlot.setPosition(-L.GEN_LIST_W / 2 + 36, 0, 0);
-  const pNode = createPortraitDisplay(portraitSlot, general, '', factionColor, 'left', 40, 44);
-  pNode.setPosition(0, 0, 0);
+  portraitSlot.addComponent(UITransform).setContentSize(44, 52);
+  createPortraitDisplay(portraitSlot, general, '', factionColor, 'embed', 44, 52);
 
   const nameLb = new Node('Name');
   row.addChild(nameLb);
@@ -290,14 +276,7 @@ export function buildOfficialFooter(
     parent.addChild(n);
     n.setPosition(x, y, 0);
     n.addComponent(UITransform).setContentSize(100, 44);
-    const g = n.addComponent(Graphics);
-    g.fillColor = toColor(enabled ? COL.sidebarBtn : { r: 90, g: 92, b: 98, a: 255 });
-    g.roundRect(-50, -22, 100, 44, 6);
-    g.fill();
-    g.strokeColor = toColor({ r: 120, g: 130, b: 145, a: 255 });
-    g.lineWidth = 1;
-    g.roundRect(-50, -22, 100, 44, 6);
-    g.stroke();
+    drawSidebarButton(n.addComponent(Graphics), 100, 44, enabled && text === '确定');
     const lb = new Node('Label');
     n.addChild(lb);
     lb.addComponent(UITransform).setContentSize(100, 44);

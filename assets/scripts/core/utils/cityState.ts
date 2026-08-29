@@ -65,13 +65,8 @@ export function formatCityStateReport(view: CityStateView): string {
   return lines.join('\n');
 }
 
-/** 子面板用精简信息（避免文字堆叠） */
+/** 子面板用精简信息（单行，避免与子按钮重叠） */
 export function formatCityStateBrief(view: CityStateView): string {
   const c = view.city;
-  return [
-    `人口 ${c.population}  金 ${c.gold}  粮 ${c.food}  兵 ${c.troops}/${view.maxTroops}`,
-    `商业 ${c.commerce}  农业 ${c.agriculture}  民忠 ${c.loyalty}  治安 ${c.order}`,
-    `太守 ${view.governor?.name ?? '无'}  |  内政 ${view.canDomestic ? '可执行' : '已完成'}`,
-    `下月预计  金+${view.projectedGoldIncome}  粮+${view.projectedFoodIncome}  兵饷-${view.projectedTroopUpkeep}`,
-  ].join('\n');
+  return `金${c.gold} 粮${c.food} 兵${c.troops}/${view.maxTroops}  商${c.commerce} 农${c.agriculture}  民忠${c.loyalty}  太守 ${view.governor?.name ?? '无'}`;
 }

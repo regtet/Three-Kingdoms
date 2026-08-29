@@ -31,7 +31,7 @@ npm run generate:audio      # 生成 WAV 音效
 npm run generate:portraits  # 生成武将立绘 PNG
 ```
 
-Cocos：打开项目 → `Game` 场景 → 预览
+Cocos Creator：用「打开项目」选择 **本目录**（`Desktop\Three-Kingdoms`，含 `assets`），**不要** 打开 `Three-Kingdoms\Three-Kingdoms` 子目录。打开 `Game` 场景 → 预览；主菜单应显示 `构建 UI-v1.2.1`。
 
 ## 开发路线
 

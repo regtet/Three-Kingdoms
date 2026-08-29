@@ -116,55 +116,68 @@ export function createPortraitButton(
   return node;
 }
 
-/** 大尺寸展示用头像（战斗过场） */
+/** 大尺寸展示用头像（战斗过场 / 嵌入面板） */
 export function createPortraitDisplay(
   parent: Node,
   general: General | null,
   placeholder: string,
   factionColor: string,
-  side: 'left' | 'right',
+  layout: 'left' | 'right' | 'embed' = 'left',
   w = 160,
   h = 210,
 ): Node {
-  const node = new Node(`PortraitDisplay_${side}`);
+  const node = new Node(`PortraitDisplay_${layout}`);
   parent.addChild(node);
-  const x = side === 'left' ? -180 : 180;
-  node.setPosition(x, 20, 0);
+  if (layout === 'embed') {
+    node.setPosition(0, 0, 0);
+  } else {
+    node.setPosition(layout === 'left' ? -180 : 180, 20, 0);
+  }
   node.addComponent(UITransform).setContentSize(w, h);
 
   const g = node.addComponent(Graphics);
+  const compact = h <= 60;
+  const medium = h <= 110;
+  const nameSize = compact ? 11 : medium ? 13 : 22;
+  const statSize = compact ? 10 : medium ? 12 : 14;
+  const charSize = compact ? 22 : medium ? 32 : 72;
+
   if (general) {
     drawPortraitCard(g, w, h, general.name, general.force, general.intelligence, true, factionColor);
-    const hasImg = attachPortraitImage(node, general.id, w, h, 20);
+    const hasImg = attachPortraitImage(node, general.id, w, h, compact ? 4 : medium ? 8 : 20);
     if (!hasImg) {
       const charLb = new Node('Char');
       node.addChild(charLb);
-      charLb.setPosition(0, 20, 0);
-      charLb.addComponent(UITransform).setContentSize(w, 80);
+      charLb.setPosition(0, compact ? 2 : medium ? 6 : 20, 0);
+      charLb.addComponent(UITransform).setContentSize(w, compact ? 28 : medium ? 40 : 80);
       const cl = charLb.addComponent(Label);
       cl.string = general.name.slice(-1);
-      cl.fontSize = 72;
+      cl.fontSize = charSize;
       cl.horizontalAlign = Label.HorizontalAlign.CENTER;
       cl.color = toColor(COL.text);
     }
-    const nameLb = new Node('Name');
-    node.addChild(nameLb);
-    nameLb.setPosition(0, -h / 2 + 28, 0);
-    nameLb.addComponent(UITransform).setContentSize(w, 30);
-    const nl = nameLb.addComponent(Label);
-    nl.string = general.name;
-    nl.fontSize = 22;
-    nl.horizontalAlign = Label.HorizontalAlign.CENTER;
-    nl.color = toColor(COL.textGold);
-    const statLb = new Node('Stats');
-    node.addChild(statLb);
-    statLb.setPosition(0, -h / 2 + 58, 0);
-    statLb.addComponent(UITransform).setContentSize(w, 24);
-    const sl = statLb.addComponent(Label);
-    sl.string = `武${general.force} 智${general.intelligence}`;
-    sl.fontSize = 14;
-    sl.horizontalAlign = Label.HorizontalAlign.CENTER;
-    sl.color = toColor(COL.textDim);
+    if (!compact) {
+      const nameLb = new Node('Name');
+      node.addChild(nameLb);
+      nameLb.setPosition(0, -h / 2 + (medium ? 16 : 28), 0);
+      nameLb.addComponent(UITransform).setContentSize(w, medium ? 18 : 30);
+      const nl = nameLb.addComponent(Label);
+      nl.string = general.name;
+      nl.fontSize = nameSize;
+      nl.horizontalAlign = Label.HorizontalAlign.CENTER;
+      nl.color = toColor(COL.textGold);
+    }
+    if (!compact) {
+      const statLb = new Node('Stats');
+      node.addChild(statLb);
+      statLb.setPosition(0, -h / 2 + (medium ? 32 : 58), 0);
+      statLb.addComponent(UITransform).setContentSize(w, 20);
+      const sl = statLb.addComponent(Label);
+      sl.string = `武${general.force} 智${general.intelligence}`;
+      sl.fontSize = statSize;
+      sl.horizontalAlign = Label.HorizontalAlign.CENTER;
+      sl.color = toColor(COL.textDim);
+    }
   } else {
     drawPanel(g, w, h, toColor({ r: 40, g: 48, b: 68, a: 255 }), toColor(COL.borderGold), 8);
     const lb = new Node('Placeholder');

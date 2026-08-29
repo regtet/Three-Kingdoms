@@ -76,6 +76,8 @@ describe('battle and diplomacy', () => {
 
   it('fire attack can reduce enemy troops', () => {
     const s = newState('wei');
+    findCity(s, 'huaibei').gold = 500;
+    findCity(s, 'huaibei').food = 500;
     findCity(s, 'shouchun').troops = 2000;
     let reduced = false;
     for (let i = 0; i < 25; i++) {
@@ -92,6 +94,7 @@ describe('battle and diplomacy', () => {
 
   it('sow discord can reduce enemy loyalty', () => {
     const s = newState('wei');
+    findCity(s, 'huaibei').gold = 500;
     findCity(s, 'shouchun').loyalty = 80;
     let ok = false;
     for (let i = 0; i < 25; i++) {
@@ -108,6 +111,7 @@ describe('battle and diplomacy', () => {
 
   it('disrupt can reduce enemy order', () => {
     const s = newState('wei');
+    findCity(s, 'huaibei').gold = 500;
     const target = findCity(s, 'shouchun');
     let ok = false;
     for (let i = 0; i < 25; i++) {
@@ -124,6 +128,7 @@ describe('battle and diplomacy', () => {
 
   it('fake report can reduce enemy order', () => {
     const s = newState('wei');
+    findCity(s, 'huaibei').gold = 500;
     const target = findCity(s, 'shouchun');
     let ok = false;
     for (let i = 0; i < 25; i++) {

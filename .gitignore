@@ -2,6 +2,8 @@
 #///////////////////////////
 # Cocos Creator 3D Project
 #///////////////////////////
+# 勿在子目录 Three-Kingdoms/ 打开项目（误选会生成嵌套缓存）
+Three-Kingdoms/
 library/
 temp/
 local/

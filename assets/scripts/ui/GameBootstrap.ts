@@ -1,4 +1,4 @@
-import { _decorator, Component, director, Node, Canvas, UITransform, Size, view, ResolutionPolicy } from 'cc';
+import { _decorator, Camera, Component, director, Node, Canvas, UITransform, Size, view, ResolutionPolicy } from 'cc';
 import { GameRoot } from './GameRoot';
 import { CocosAudioBridge } from './CocosAudioBridge';
 import { applyScreenAdapt } from './ScreenAdapt';
@@ -13,14 +13,31 @@ const { ccclass } = _decorator;
 @ccclass('GameBootstrap')
 export class GameBootstrap extends Component {
   onLoad() {
-    let canvas = director.getScene()?.getComponentInChildren(Canvas);
+    console.log('[GameBootstrap] 启动…');
+    const scene = director.getScene()!;
+
+    let canvas = scene.getComponentInChildren(Canvas);
+    let canvasNode: Node;
+
     if (!canvas) {
-      const scene = director.getScene()!;
-      const canvasNode = new Node('Canvas');
+      canvasNode = new Node('Canvas');
       scene.addChild(canvasNode);
       canvas = canvasNode.addComponent(Canvas);
-      const tf = canvasNode.addComponent(UITransform);
-      tf.setContentSize(new Size(L.W, L.H));
+      canvasNode.addComponent(UITransform).setContentSize(new Size(L.W, L.H));
+
+      const cameraNode = new Node('UICamera');
+      canvasNode.addChild(cameraNode);
+      cameraNode.setPosition(0, 0, 1000);
+      const cam = cameraNode.addComponent(Camera);
+      cam.projection = Camera.ProjectionType.ORTHO;
+      cam.orthoHeight = L.H / 2;
+      cam.near = 1;
+      cam.far = 2000;
+      cam.clearFlags = Camera.ClearFlag.SOLID_COLOR;
+      cam.clearColor.set(10, 14, 24, 255);
+      canvas.cameraComponent = cam;
+    } else {
+      canvasNode = canvas.node;
     }
 
     const frame = view.getVisibleSize();
@@ -32,13 +49,14 @@ export class GameBootstrap extends Component {
       view.setDesignResolutionSize(L.W, L.H, ResolutionPolicy.FIXED_WIDTH);
     }
 
-    if (!canvas.node.getComponent(GameRoot)) {
-      canvas.node.addComponent(GameRoot);
+    if (!canvasNode.getComponent(GameRoot)) {
+      canvasNode.addComponent(GameRoot);
     }
-    if (!canvas.node.getComponent(CocosAudioBridge)) {
-      canvas.node.addComponent(CocosAudioBridge);
+    if (!canvasNode.getComponent(CocosAudioBridge)) {
+      canvasNode.addComponent(CocosAudioBridge);
     }
 
-    applyScreenAdapt(canvas.node);
+    applyScreenAdapt(canvasNode);
+    console.log('[GameBootstrap] Canvas 就绪');
   }
 }

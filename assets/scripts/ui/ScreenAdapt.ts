@@ -1,7 +1,7 @@
-import { Node, UITransform, view, ResolutionPolicy, Widget } from 'cc';
+import { Node, UITransform, view, ResolutionPolicy } from 'cc';
 import { L } from './OfficialLayout';
 
-/** 屏幕适配：消除顶底黑边，设计分辨率 720×1280 */
+/** 屏幕适配：设计分辨率 720×1280（不用 Widget，避免预览卡死） */
 export function applyScreenAdapt(root: Node): void {
   const frame = view.getVisibleSize();
   const designW = L.W;
@@ -9,7 +9,6 @@ export function applyScreenAdapt(root: Node): void {
   const frameRatio = frame.width / frame.height;
   const designRatio = designW / designH;
 
-  // 宽屏用固定高度，窄屏用固定宽度；NO_BORDER 铺满可视区域
   if (frameRatio >= designRatio) {
     view.setDesignResolutionSize(designW, designH, ResolutionPolicy.FIXED_HEIGHT);
   } else {
@@ -19,19 +18,6 @@ export function applyScreenAdapt(root: Node): void {
   const tf = root.getComponent(UITransform);
   if (tf) {
     tf.setContentSize(designW, designH);
-  }
-
-  // 背景层 Widget 四边对齐，防止 NO_BORDER 裁切露边
-  let bg = root.getChildByName('RootBg');
-  if (!bg) {
-    bg = root.children[0];
-  }
-  if (bg) {
-    let widget = bg.getComponent(Widget);
-    if (!widget) widget = bg.addComponent(Widget);
-    widget.isAlignTop = widget.isAlignBottom = widget.isAlignLeft = widget.isAlignRight = true;
-    widget.top = widget.bottom = widget.left = widget.right = 0;
-    widget.alignMode = Widget.AlignMode.ON_WINDOW_RESIZE;
   }
 }
 

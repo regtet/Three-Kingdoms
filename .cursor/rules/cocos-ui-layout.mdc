@@ -1,0 +1,57 @@
+---
+description: 三国志 UI 自动约束——用户说改/修/优化界面时无需点名，Agent 必须自动遵守
+alwaysApply: true
+---
+
+# UI 改动（自动生效）
+
+用户用自然语言说「改 xxx」「修堆叠」「优化主菜单」等时，**自动**按本规则执行，**不要**要求用户提 skill、rule 或 @文件。
+
+## 触发范围
+
+涉及以下任一即适用：界面、布局、堆叠、黑边、按钮、面板、菜单、子面板、弹窗、GameRoot、OfficialLayout、OfficialPanels、UiDraw。
+
+## 改前
+
+1. 读 `OfficialLayout.ts` 全部 `L.*` 常量
+2. **一次只改一个界面**（主菜单 / 地图 idle / 子面板 / 单个弹窗）
+3. 有截图时先标注冲突区域
+
+## 布局
+
+- 坐标**只**在 `OfficialLayout.ts` 定义；GameRoot/OfficialPanels 只用 `L.*`
+- 子面板分区：`SUB_TITLE → SUB_INFO → SUB_SORT → SUB_LIST → SUB_ACTION → SUB_EXTRA → SUB_FOOTER`
+- 武将列表每页最多 2 行；相邻区域间距 ≥ 8px
+
+## 防堆叠（子面板打开时）
+
+```typescript
+this.setMapLogVisible(false);
+this.setMapCmdVisible(false);  // CmdBar 背景 + 五个命令按钮都要隐藏
+this.subDimNode.active = true;
+this.subPanel.setSiblingIndex(this.mapLayer.children.length - 1);
+```
+
+`closeSubPanel` 时全部恢复。禁止 cmdBar 与子面板同屏。
+
+## 防黑边
+
+- 根节点与全屏 Bg = `L.W × L.H`（720×1280）
+- 遮罩 Graphics 尺寸匹配父 UITransform，铺满不断层
+
+## 改后（必须做）
+
+1. `npm test` 全绿（含 `tests/layout.test.ts`）
+2. bump `UI_BUILD_TAG`，同步 README 版本号
+3. 提示用户 Cocos 预览并截图验收；**不得自行宣布 UI 完成**
+
+## 禁止
+
+- 一次改 3 个以上界面
+- GameRoot 写硬编码 Y 值
+- 只隐藏 CmdBar 背景不隐藏五个 Cmd 按钮
+- 跳过 npm test 说「已修复」
+
+## Cocos 路径
+
+打开 `Desktop\Three-Kingdoms`（含 assets），勿开 `Three-Kingdoms\Three-Kingdoms`。
