@@ -11,7 +11,8 @@
     "flow": "tsx scripts/official-flow.ts",
     "generate:audio": "tsx scripts/generate-audio.ts",
     "generate:portraits": "tsx scripts/generate-portraits.ts",
-    "import:portraits": "tsx scripts/import-stitch-portraits.ts"
+    "import:portraits": "tsx scripts/import-stitch-portraits.ts",
+    "sync:portraits": "tsx scripts/sync-portraits-webp.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

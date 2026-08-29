@@ -6,7 +6,7 @@ let preloadStarted = false;
 let preloadDone = false;
 const listeners: Array<() => void> = [];
 
-/** 预加载 assets/resources/portraits/ 下全部立绘 */
+/** 预加载 assets/resources/portraits/ 下全部立绘（支持 PNG / WebP） */
 export function preloadPortraits(onDone?: () => void): void {
   if (onDone) listeners.push(onDone);
   if (preloadDone) {
