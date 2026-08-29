@@ -1,0 +1,21 @@
+{
+  "name": "Three-Kingdoms",
+  "uuid": "bed08a7e-1699-4bc2-af6f-e768695add6f",
+  "creator": {
+    "version": "3.8.8"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "simulate": "tsx scripts/simulate.ts",
+    "flow": "tsx scripts/official-flow.ts",
+    "generate:audio": "tsx scripts/generate-audio.ts",
+    "generate:portraits": "tsx scripts/generate-portraits.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}

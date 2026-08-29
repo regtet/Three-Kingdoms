@@ -1,0 +1,51 @@
+import type { Formulas } from '../models/types';
+
+/** 贴近官方三国志 II 移动版的核心系数（可继续微调） */
+export const FORMULAS: Formulas = {
+  develop: { goldCost: 50, commerceGain: 25, populationGain: 200 },
+  farm: { goldCost: 40, agricultureGain: 25 },
+  govern: { goldCost: 30, loyaltyGain: 5, orderGain: 8, disasterHealChance: 0.35 },
+  recruit: { goldPerTroop: 2, foodPerTroop: 1, troopsPerPopulation: 0.35 },
+  income: { goldPerCommerce: 0.08, foodPerAgriculture: 0.1, populationFactor: 1.0 },
+  loyalty: { monthlyDecay: 1, rewardGoldCost: 50, rewardLoyaltyGain: 8, generalMonthlyDecay: 1, defectionThreshold: 20 },
+  upkeep: { foodPerTroop: 0.08, desertionRatio: 0.05 },
+  recruitEfficiency: { minOrder: 30, minLoyalty: 25 },
+  battle: {
+    cityDefenseBonus: 1.25,
+    randomVariance: 0.1,
+    attackerForceWeight: 0.005,
+    defenderIntelligenceWeight: 0.004,
+    leadershipWeight: 0.01,
+    siegeMaxRounds: 3,
+    duelMinForce: 70,
+    duelPowerBonus: 0.12,
+    jointArmyBonus: 0.15,
+    injuredLossRatio: 0.35,
+  },
+  search: { goldCost: 80, baseSuccessRate: 0.35, charmFactor: 0.003 },
+  stratagem: {
+    baseSuccessRate: 0.55,
+    intelligenceFactor: 0.004,
+    fireAttack: { goldCost: 80, foodCost: 40, minIntelligence: 60, troopDamageRatio: 0.15 },
+    sowDiscord: { goldCost: 60, minIntelligence: 55, loyaltyLoss: 12 },
+    disrupt: { goldCost: 50, minIntelligence: 50, orderLoss: 15 },
+    ambush: { goldCost: 70, foodCost: 30, minIntelligence: 65, troopDamageRatio: 0.12 },
+    fakeReport: { goldCost: 55, minIntelligence: 58, orderLoss: 20 },
+    inspire: { goldCost: 40, minIntelligence: 45, loyaltyGain: 8 },
+  },
+  diplomacy: {
+    giftGoldCost: 100,
+    giftRelationGain: 15,
+    allianceMinDuration: 6,
+    truceMinDuration: 3,
+  },
+  ai: {
+    developThresholdCommerce: 150,
+    farmThresholdAgriculture: 150,
+    recruitTargetTroops: 3000,
+    minTroopsToAttack: 1500,
+    stratagemChance: 0.35,
+    governChance: 0.4,
+  },
+  wildRecruit: { minGold: 120 },
+};
