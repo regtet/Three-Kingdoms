@@ -136,6 +136,7 @@ export class GameRoot extends Component {
   private activeSaveSlot = 0;
   private genPickerSort: 'force' | 'intelligence' | 'loyalty' = 'force';
   private genPickerPage = 0;
+  private rosterPage = 0;
   private customRecruitAmount = 100;
   private customTransportGold = 100;
   private customTransportFood = 100;
@@ -724,10 +725,30 @@ export class GameRoot extends Component {
     const body = this.rosterPanel.getChildByName('RosterBody');
     if (!body) return;
     body.destroyAllChildren();
+    this.rosterPanel.children.filter((c) => c.name === 'RosterPrev' || c.name === 'RosterNext').forEach((c) => c.destroy());
+
     const gens = state.generals
       .filter((g) => g.factionId === state.playerFactionId)
       .sort((a, b) => b.force - a.force);
-    gens.forEach((g, i) => {
+    const pageSize = 6;
+    const maxPage = Math.max(0, Math.ceil(gens.length / pageSize) - 1);
+    this.rosterPage = Math.min(this.rosterPage, maxPage);
+    const page = this.rosterPage;
+
+    if (page > 0) {
+      this.btn(this.rosterPanel, 'RosterPrev', '上一页', new Vec3(-200, -400, 0), () => {
+        this.rosterPage = Math.max(0, page - 1);
+        this.openRosterPanel();
+      }, 100, 40);
+    }
+    if ((page + 1) * pageSize < gens.length) {
+      this.btn(this.rosterPanel, 'RosterNext', '下一页', new Vec3(200, -400, 0), () => {
+        this.rosterPage = page + 1;
+        this.openRosterPanel();
+      }, 100, 40);
+    }
+
+    gens.slice(page * pageSize, page * pageSize + pageSize).forEach((g, i) => {
       buildGeneralListRow(
         body,
         g,
@@ -1565,6 +1586,7 @@ export class GameRoot extends Component {
     if (r.success) audioManager.playSuccess();
     else audioManager.playFail();
     this.toast(r.message);
+    if (r.success) this.logScrollOffset = 0;
     if (r.success && this.selectedCityId) {
       const city = findCity(gameEngine.state!, this.selectedCityId);
       this.subInfo.string = gameEngine.getCityStateBrief(this.selectedCityId);
@@ -1578,6 +1600,7 @@ export class GameRoot extends Component {
     if (r.success) audioManager.playStratagem();
     else audioManager.playFail();
     this.toast(r.message);
+    if (r.success) this.logScrollOffset = 0;
     if (r.success && this.selectedCityId) {
       const city = findCity(gameEngine.state!, this.selectedCityId);
       this.subInfo.string = gameEngine.getCityStateBrief(this.selectedCityId);
@@ -1620,14 +1643,24 @@ export class GameRoot extends Component {
       .filter((c) => c.factionId === state.playerFactionId);
     if (!allies.length) { this.toast('无相邻己方城池'); return; }
     this.clearSubBtns();
+
+    const refreshLabels = () => {
+      this.setBtnLabel(this.subBtnContainer.getChildByName('CycleGold')!, `金:${this.customTransportGold}`);
+      this.setBtnLabel(this.subBtnContainer.getChildByName('CycleFood')!, `粮:${this.customTransportFood}`);
+      this.setBtnLabel(this.subBtnContainer.getChildByName('CycleTroops')!, `兵:${this.customTransportTroops}`);
+    };
+
     this.btn(this.subBtnContainer, 'CycleGold', `金:${this.customTransportGold}`, new Vec3(-200, 80, 0), () => {
       this.customTransportGold = this.customTransportGold === 50 ? 100 : this.customTransportGold === 100 ? 200 : 50;
+      refreshLabels();
     }, 100, 32);
     this.btn(this.subBtnContainer, 'CycleFood', `粮:${this.customTransportFood}`, new Vec3(-60, 80, 0), () => {
       this.customTransportFood = this.customTransportFood === 50 ? 100 : this.customTransportFood === 100 ? 200 : 50;
+      refreshLabels();
     }, 100, 32);
     this.btn(this.subBtnContainer, 'CycleTroops', `兵:${this.customTransportTroops}`, new Vec3(80, 80, 0), () => {
       this.customTransportTroops = this.customTransportTroops === 100 ? 200 : this.customTransportTroops === 200 ? 500 : 100;
+      refreshLabels();
     }, 100, 32);
     allies.forEach((to, i) => {
       const y = 20 - i * 70;

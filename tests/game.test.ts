@@ -6,10 +6,11 @@ import { recruitTroops } from '../assets/scripts/core/systems/recruit';
 import { canAttack, estimateBattle } from '../assets/scripts/core/systems/battle';
 import { monthlySettlement, calcGoldIncome, calcTroopUpkeep } from '../assets/scripts/core/systems/income';
 import { proposeTruce, getRelation } from '../assets/scripts/core/systems/diplomacy';
-import { useFireAttack, useSowDiscord, useDisrupt } from '../assets/scripts/core/systems/stratagem';
-import { searchTalent, recruitWildGeneral } from '../assets/scripts/core/systems/personnel';
+import { useFireAttack, useSowDiscord, useDisrupt, useFakeReport, useInspire } from '../assets/scripts/core/systems/stratagem';
+import { searchTalent, recruitWildGeneral, processDefections } from '../assets/scripts/core/systems/personnel';
 import { SCENARIO_002 } from '../assets/scripts/core/data/scenario_002';
 import { getCityStateView, formatCityStateReport } from '../assets/scripts/core/utils/cityState';
+import { formatFactionStatsReport } from '../assets/scripts/core/systems/saveSummary';
 import { GameEngine } from '../assets/scripts/core/game/GameEngine';
 import type { GameState } from '../assets/scripts/core/models/types';
 
@@ -120,6 +121,31 @@ describe('battle and diplomacy', () => {
     }
     expect(ok).toBe(true);
   });
+
+  it('fake report can reduce enemy order', () => {
+    const s = newState('wei');
+    const target = findCity(s, 'shouchun');
+    let ok = false;
+    for (let i = 0; i < 25; i++) {
+      target.order = 80;
+      const r = useFakeReport(s, 'huaibei', 'g_guojia', 'shouchun');
+      if (r.success) {
+        expect(target.order).toBeLessThan(80);
+        ok = true;
+        break;
+      }
+    }
+    expect(ok).toBe(true);
+  });
+
+  it('inspire can raise city loyalty', () => {
+    const s = newState('wei');
+    const city = findCity(s, 'luoyang');
+    city.loyalty = 50;
+    const r = useInspire(s, 'luoyang', 'g_caocao');
+    expect(r.success).toBe(true);
+    expect(city.loyalty).toBeGreaterThan(50);
+  });
 });
 
 describe('city state view', () => {
@@ -142,6 +168,50 @@ describe('GameEngine official turn', () => {
     engine.endTurn();
     expect(engine.state?.turn).toBe(2);
     expect(findCity(engine.state!, 'luoyang').gold).toBeGreaterThanOrEqual(goldBefore);
+  });
+
+  it('turn end summary includes faction stats', () => {
+    const engine = new GameEngine();
+    engine.newGame(SCENARIO_001, 'wei');
+    const summary = engine.getTurnEndSummary();
+    expect(summary).toContain('城');
+    expect(summary).toContain('金');
+    const report = engine.getFactionStatsReport();
+    expect(report).toContain('势力概况');
+  });
+});
+
+describe('personnel defection', () => {
+  it('low loyalty general may defect to wild', () => {
+    const s = newState('wei');
+    const g = s.generals.find((x) => x.factionId === 'wei')!;
+    g.loyalty = 5;
+    const before = s.generals.length;
+    let defected = false;
+    for (let i = 0; i < 40; i++) {
+      g.loyalty = 5;
+      if (!s.generals.some((x) => x.id === g.id)) {
+        s.generals.push({ ...g, loyalty: 5 });
+      }
+      processDefections(s);
+      if (!s.generals.some((x) => x.id === g.id)) {
+        defected = true;
+        break;
+      }
+    }
+    expect(defected).toBe(true);
+    expect(s.generals.length).toBeLessThan(before);
+    expect(s.wildGenerals.some((w) => w.id === g.id)).toBe(true);
+  });
+});
+
+describe('faction stats report', () => {
+  it('lists all active factions', () => {
+    const s = newState('wei');
+    const text = formatFactionStatsReport(s);
+    expect(text).toContain('魏');
+    expect(text).toContain('吴');
+    expect(text).toContain('★');
   });
 });
 
