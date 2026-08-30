@@ -1,4 +1,4 @@
-import { _decorator, Camera, Canvas, Component, director, macro, Node, UITransform, Size, view, ResolutionPolicy } from 'cc';
+import { _decorator, Camera, Canvas, Component, director, macro, Node, UITransform, Size, view } from 'cc';
 import { GameRoot } from './GameRoot';
 import { CocosAudioBridge } from './CocosAudioBridge';
 import { applyScreenAdapt } from './ScreenAdapt';
@@ -42,14 +42,7 @@ export class GameBootstrap extends Component {
       canvasNode = canvas.node;
     }
 
-    const frame = view.getVisibleSize();
-    const ratio = frame.width / frame.height;
-    const designRatio = L.W / L.H;
-    if (ratio >= designRatio) {
-      view.setDesignResolutionSize(L.W, L.H, ResolutionPolicy.FIXED_HEIGHT);
-    } else {
-      view.setDesignResolutionSize(L.W, L.H, ResolutionPolicy.FIXED_WIDTH);
-    }
+    applyScreenAdapt(canvasNode, canvas.cameraComponent);
 
     if (!canvasNode.getComponent(GameRoot)) {
       canvasNode.addComponent(GameRoot);
@@ -58,7 +51,6 @@ export class GameBootstrap extends Component {
       canvasNode.addComponent(CocosAudioBridge);
     }
 
-    applyScreenAdapt(canvasNode);
     console.log('[GameBootstrap] Canvas 就绪');
   }
 }

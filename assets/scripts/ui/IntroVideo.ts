@@ -11,6 +11,7 @@ import {
   VideoPlayer,
 } from 'cc';
 import { COL, L } from './OfficialLayout';
+import { fitCover } from './SpriteFit';
 import { drawPanel, toColor } from './UiDraw';
 
 /** 播放开场视频；失败或结束时回调 */
@@ -31,7 +32,7 @@ export function playIntroVideo(parent: Node, onFinish: () => void): Node {
 
   const videoNode = new Node('IntroVideo');
   layer.addChild(videoNode);
-  videoNode.addComponent(UITransform).setContentSize(L.W, L.H);
+  videoNode.setPosition(0, 0, 0);
   const player = videoNode.addComponent(VideoPlayer);
   player.resourceType = VideoPlayer.ResourceType.LOCAL;
   player.stayOnBottom = false;
@@ -45,8 +46,27 @@ export function playIntroVideo(parent: Node, onFinish: () => void): Node {
     onFinish();
   };
 
+  /** 竖屏全屏：等比 cover 铺满，不拉伸变形 */
+  const applyVideoCover = (mediaW = 1920, mediaH = 1080) => {
+    const { w, h } = fitCover(L.W, L.H, mediaW, mediaH);
+    const tf = videoNode.getComponent(UITransform) ?? videoNode.addComponent(UITransform);
+    tf.setContentSize(w, h);
+    tf.setAnchorPoint(0.5, 0.5);
+    console.log(`[IntroVideo] cover ${mediaW}x${mediaH} → ${w}x${h}`);
+  };
+
+  applyVideoCover();
+
   player.node.on(VideoPlayer.EventType.COMPLETED, () => finish('completed'));
   player.node.on(VideoPlayer.EventType.ERROR, () => finish('error'));
+  player.node.on(VideoPlayer.EventType.META_LOADED, () => {
+    const meta = player.meta;
+    if (meta?.width && meta?.height) applyVideoCover(meta.width, meta.height);
+  });
+  player.node.on(VideoPlayer.EventType.READY_TO_PLAY, () => {
+    const meta = player.meta;
+    if (meta?.width && meta?.height) applyVideoCover(meta.width, meta.height);
+  });
 
   const skipNode = new Node('SkipIntro');
   layer.addChild(skipNode);

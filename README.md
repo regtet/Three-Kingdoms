@@ -31,7 +31,9 @@ npm run generate:audio      # 生成 WAV 音效
 npm run generate:portraits  # 生成武将立绘 PNG
 ```
 
-Cocos Creator：打开 `Game` 场景 → 预览；主菜单应显示 `构建 UI-v1.5.0`。Logo `resources/brand/logo.webp`；游戏图标 7 张（`resources/icons/`）可在设置或主菜单切换；背景 13 张 WebP（`resources/backgrounds/`）。同步命令：`npm run sync:backgrounds`、`npm run sync:portraits`。
+Cocos Creator：打开 `Game` 场景 → 预览；主菜单右下角应显示 `UI-v1.7.0`。Logo 使用 `resources/brand/logo2.webp`。
+
+大厅二级页（存档列表、选剧本、剧本详情、选势力、武将图鉴、背景图鉴、设置）统一为文字菜单 + 大厅背景风格。
 
 ### 打包（Android 竖屏 + 启动图标）
 

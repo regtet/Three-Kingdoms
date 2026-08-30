@@ -27,6 +27,14 @@ export function summarizeState(state: GameState): SaveSummary {
   };
 }
 
+export function formatSaveSlotMenuLine(slot: number, s: SaveSummary): string {
+  return `槽 ${slot + 1}　${s.factionName}　${s.year}年${s.month}月`;
+}
+
+export function formatSaveSlotSubline(s: SaveSummary): string {
+  return `第 ${s.turn} 回合 · ${s.cityCount} 城 · 将 ${s.generalCount} · 金 ${s.goldTotal} 粮 ${s.foodTotal}`;
+}
+
 export function formatSaveSummary(s: SaveSummary): string {
   return `${s.factionName} · ${s.year}年${s.month}月 · 第${s.turn}回合 · ${s.cityCount}城`;
 }

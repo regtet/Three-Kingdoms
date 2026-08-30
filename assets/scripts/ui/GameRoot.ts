@@ -10,6 +10,8 @@ import {
   BlockInputEvents,
   Graphics,
   tween,
+  game,
+  sys,
 } from 'cc';
 import { gameEngine } from '../core/game/GameEngine';
 import { ALL_SCENARIOS, MAP_LAYOUT } from '../core/data/scenarios/index';
@@ -30,9 +32,23 @@ import { MAX_SAVE_SLOTS } from '../core/systems/save';
 import { createPortraitDisplay } from './GeneralPortrait';
 import { preloadPortraits } from './PortraitLoader';
 import { applyMenuBackground, preloadMenuBackgrounds } from './MenuBackground';
-import { applyMenuGameIcon, applyMenuLogo, applyWebFavicon, preloadBrandAssets } from './BrandAssets';
-import { getMenuBackgroundLabel, nextMenuBackgroundId } from '../core/data/menuBackgrounds';
+import { applyMenuLogo, applyWebFavicon, preloadBrandAssets } from './BrandAssets';
+import { getMenuBackgroundLabel, MENU_BACKGROUNDS, nextMenuBackgroundId, normalizeMenuBackgroundId } from '../core/data/menuBackgrounds';
 import { getGameIconLabel, nextGameIconId } from '../core/data/gameIcons';
+import { getScenarioMeta } from '../core/data/scenarioMeta';
+import { buildGalleryCatalog, type GalleryGeneral } from '../core/data/generalCatalog';
+import { hasAnySave } from '../core/systems/save';
+import { formatSaveSlotMenuLine, formatSaveSlotSubline, peekSaveSummary } from '../core/systems/saveSummary';
+import { applyLobbyTypography, createLobbyBack, createLobbyTitle, createTextMenuItem } from './LobbyUi';
+import {
+  buildLobbyPageShell,
+  createLobbyBody,
+  createLobbyNavPair,
+  createLobbyPageHint,
+  createLobbySettingRow,
+  updateTextMenuLabel,
+} from './LobbyScreens';
+import { attachPortraitImage } from './PortraitLoader';
 import { buildFactionLegend, refreshNeighborHighlights } from './MapVisual';
 import { refreshStrategicMapLayer } from './StrategicMap';
 import { buildGeneralEditorPanel } from './GeneralEditor';
@@ -66,9 +82,19 @@ const { ccclass } = _decorator;
 
 const TUTORIAL_KEY = 'tk_tutorial_seen';
 /** 改 UI 后看主菜单副标题是否为此版本，否则说明 Cocos 未加载最新脚本 */
-const UI_BUILD_TAG = 'UI-v1.5.0';
+const UI_BUILD_TAG = 'UI-v1.7.0';
 
-type Screen = 'menu' | 'scenario' | 'faction' | 'map' | 'end' | 'settings';
+type Screen =
+  | 'menu'
+  | 'saveList'
+  | 'scenario'
+  | 'scenarioDetail'
+  | 'faction'
+  | 'generalGallery'
+  | 'backgroundGallery'
+  | 'map'
+  | 'end'
+  | 'settings';
 @ccclass('GameRoot')
 export class GameRoot extends Component {
   private screen: Screen = 'menu';
@@ -87,6 +113,21 @@ export class GameRoot extends Component {
 
   private root!: Node;
   private menuLayer!: Node;
+  private menuItemsContainer!: Node;
+  private menuBgFallback!: Node;
+  private menuTitleFallback!: Node;
+  private saveListLayer!: Node;
+  private saveListBtnContainer!: Node;
+  private scenarioDetailLayer!: Node;
+  private scenarioDetailBody!: Label;
+  private generalGalleryLayer!: Node;
+  private generalGalleryBody!: Label;
+  private generalGalleryPortraitSlot!: Node;
+  private backgroundGalleryLayer!: Node;
+  private backgroundGalleryLabel!: Label;
+  private galleryGenerals: GalleryGeneral[] = [];
+  private galleryGeneralIndex = 0;
+  private galleryBgIndex = 0;
   private scenarioLayer!: Node;
   private factionLayer!: Node;
   private settingsLayer!: Node;
@@ -182,7 +223,7 @@ export class GameRoot extends Component {
         }
       });
       preloadMenuBackgrounds(() => this.refreshMenuBackground());
-      preloadBrandAssets(() => this.refreshMenuBrand());
+      preloadBrandAssets(() => this.refreshMenuLayers());
       playIntroVideo(this.root, () => {
         this.showScreen('menu');
       });
@@ -211,8 +252,12 @@ export class GameRoot extends Component {
     this.endLayer = this.layer('EndLayer');
 
     this.buildMenu();
+    this.buildSaveList();
     this.buildScenarioSelect();
+    this.buildScenarioDetail();
     this.buildFactionSelect();
+    this.buildGeneralGallery();
+    this.buildBackgroundGallery();
     this.buildSettings();
     this.buildMapScreen();
     this.buildSubPanel();
@@ -309,62 +354,248 @@ export class GameRoot extends Component {
   }
 
   private buildMenu() {
-    this.menuBgFallback = this.panelBg(this.menuLayer, 'Bg', L.W, L.H, 0, COL.mapBg, { r: 60, g: 80, b: 120, a: 80 });
-    const dim = new Node('MenuBgDim');
-    this.menuLayer.insertChild(dim, 1);
-    dim.setPosition(0, 0, 0);
-    dim.addComponent(UITransform).setContentSize(L.W, L.H);
-    const dimG = dim.addComponent(Graphics);
-    dimG.fillColor = toColor({ r: 8, g: 12, b: 22, a: 140 });
-    dimG.rect(-L.W / 2, -L.H / 2, L.W, L.H);
-    dimG.fill();
-    const deco = new Node('MenuDeco');
-    this.menuLayer.addChild(deco);
-    deco.setPosition(0, L.MENU_LOGO_Y, 0);
-    deco.addComponent(UITransform).setContentSize(400, 400);
-    const dg = deco.addComponent(Graphics);
-    drawTitleBar(dg, 480, 0);
+    this.menuBgFallback = this.panelBg(this.menuLayer, 'Bg', L.W, L.H, 0, COL.mapBg, { r: 0, g: 0, b: 0, a: 0 });
 
     this.menuTitleFallback = new Node('MenuTitleFallback');
     this.menuLayer.addChild(this.menuTitleFallback);
-    const title = this.label(this.menuTitleFallback, 'Title', '三国志', 52, new Vec3(0, L.MENU_ICON_Y + 30, 0), 680);
-    title.color = this.c(COL.textGold);
-    this.label(this.menuTitleFallback, 'SubTitle', '天 下 争 锋', 28, new Vec3(0, L.MENU_LOGO_Y - 10, 0)).color = this.c(COL.text);
-    this.label(this.menuLayer, 'Sub', `构建 ${UI_BUILD_TAG}`, 16, new Vec3(0, L.MENU_BUILD_TAG_Y, 0)).color = this.c(COL.textDim);
+    const title = this.label(this.menuTitleFallback, 'Title', '三国志 · 天下争锋', 40, new Vec3(0, L.MENU_LOGO_Y, 0), 680);
+    applyLobbyTypography(title, 'title');
+    title.string = '三国志 · 天下争锋';
 
-    const card = new Node('MenuCard');
-    this.menuLayer.addChild(card);
-    card.setPosition(0, L.MENU_CARD_Y, 0);
-    card.addComponent(UITransform).setContentSize(L.MENU_CARD_W, L.MENU_CARD_H);
-    drawPanel(card.addComponent(Graphics), L.MENU_CARD_W, L.MENU_CARD_H, toColor(COL.subPanel), toColor(COL.borderGold), 12);
-    const bar = new Node('MenuCardBar');
-    card.addChild(bar);
-    bar.setPosition(0, L.MENU_CARD_H / 2 - 28, 0);
-    bar.addComponent(UITransform).setContentSize(L.MENU_CARD_W - 48, 4);
-    drawTitleBar(bar.addComponent(Graphics), L.MENU_CARD_W - 48, 0);
+    const ver = this.label(this.menuLayer, 'BuildTag', UI_BUILD_TAG, 14, new Vec3(L.MENU_BUILD_TAG_X, L.MENU_BUILD_TAG_Y, 0), 120);
+    ver.color = this.c(COL.textDim);
+    ver.horizontalAlign = Label.HorizontalAlign.RIGHT;
 
-    this.btn(card, 'NewGame', '新游戏', new Vec3(0, L.MENU_BTN1_Y, 0), () => {
-      this.openSaveSlotPicker(true);
-    }, 260, 56);
-    this.btn(card, 'Continue', '继续游戏', new Vec3(0, L.MENU_BTN2_Y, 0), () => {
-      this.openSaveSlotPicker(false);
-    }, 260, 56);
-    this.btn(card, 'Settings', '设置', new Vec3(0, L.MENU_BTN3_Y, 0), () => {
-      this.settingsReturn = 'menu';
-      this.refreshSettingsUI();
-      this.showScreen('settings');
-    }, 260, 48);
+    this.menuItemsContainer = new Node('MenuItems');
+    this.menuLayer.addChild(this.menuItemsContainer);
+    this.refreshMainMenuItems();
+  }
 
-    const note = this.label(this.menuLayer, 'MenuNote', '存档槽详情在「继续游戏」中选择', 14, new Vec3(0, L.MENU_NOTE_Y, 0), 680);
-    note.color = this.c(COL.textDim);
-    note.horizontalAlign = Label.HorizontalAlign.CENTER;
+  private refreshMainMenuItems() {
+    this.menuItemsContainer.destroyAllChildren();
+    type MenuDef = { id: string; text: string; y: number; action: () => void; show?: () => boolean };
+    const gap = L.MENU_ITEM_GAP;
+    const startY = L.MENU_ITEMS_START_Y;
+    const defs: MenuDef[] = [
+      { id: 'new', text: '新游戏', y: startY, action: () => this.showScreen('scenario') },
+      { id: 'load', text: '加载游戏', y: startY - gap, action: () => this.showScreen('saveList'), show: () => hasAnySave() },
+      { id: 'generals', text: '武将图鉴', y: startY - gap * 2, action: () => this.openGeneralGallery() },
+      { id: 'backgrounds', text: '背景图鉴', y: startY - gap * 3, action: () => this.openBackgroundGallery() },
+      { id: 'settings', text: '设置', y: startY - gap * 4, action: () => { this.settingsReturn = 'menu'; this.refreshSettingsUI(); this.showScreen('settings'); } },
+      { id: 'exit', text: '退出游戏', y: startY - gap * 4 - L.MENU_ITEM_EXIT_GAP, action: () => this.exitGame() },
+    ];
+    for (const d of defs) {
+      if (d.show && !d.show()) continue;
+      createTextMenuItem(this.menuItemsContainer, d.id, d.text, d.y, d.action, this);
+    }
+  }
 
-    this.btn(this.menuLayer, 'MenuBgSwitch', '切换背景', new Vec3(L.MENU_BG_BTN_X, L.MENU_BG_BTN_Y, 0), () => {
-      this.cycleMenuBackground();
-    }, 160, 40);
-    this.btn(this.menuLayer, 'MenuIconSwitch', '切换图标', new Vec3(L.MENU_ICON_BTN_X, L.MENU_BG_BTN_Y, 0), () => {
-      this.cycleGameIcon();
-    }, 160, 40);
+  private exitGame() {
+    if (sys.isNative) {
+      game.end();
+      return;
+    }
+    this.toast('Web 预览无法退出，请关闭浏览器标签');
+  }
+
+  private applyLobbyBackground(layer: Node, fallback?: Node) {
+    const ok = applyMenuBackground(layer, this.gameSettings.menuBackgroundId);
+    if (fallback) fallback.active = !ok;
+  }
+
+  private saveListSubtitle!: Label;
+
+  private buildSaveList() {
+    this.saveListLayer = this.layer('SaveListLayer');
+    const shell = buildLobbyPageShell(
+      this.saveListLayer,
+      '加载游戏',
+      '选择存档继续征程',
+      () => this.showScreen('menu'),
+      this,
+    );
+    this.saveListSubtitle = shell.subtitleLabel;
+    this.saveListBtnContainer = new Node('SaveBtns');
+    this.saveListLayer.addChild(this.saveListBtnContainer);
+  }
+
+  private refreshSaveList() {
+    this.saveListBtnContainer.destroyAllChildren();
+    let row = 0;
+    let count = 0;
+    for (let i = 0; i < MAX_SAVE_SLOTS; i++) {
+      const detail = peekSaveSummary(i);
+      if (!detail) continue;
+      count++;
+      const y = L.LOBBY_LIST_START_Y - row * (L.LOBBY_LIST_GAP + 8);
+      const text = `${formatSaveSlotMenuLine(i, detail)}\n${formatSaveSlotSubline(detail)}`;
+      createTextMenuItem(this.saveListBtnContainer, `Save_${i}`, text, y, () => {
+        if (gameEngine.loadGameFromSlot(i)) {
+          this.activeSaveSlot = i;
+          this.showScreen('map');
+          this.refreshMap();
+        } else {
+          this.toast('读取失败');
+        }
+      }, this, L.LOBBY_BODY_W);
+      row++;
+    }
+    this.saveListSubtitle.string = count > 0 ? `共 ${count} 个存档` : '暂无存档';
+    if (count === 0) {
+      createLobbyBody(this.saveListBtnContainer, 'Empty', L.LOBBY_LIST_START_Y, L.LOBBY_BODY_W).string =
+        '尚无保存的进度\n请先开始新游戏';
+    }
+  }
+
+  private buildScenarioDetail() {
+    this.scenarioDetailLayer = this.layer('ScenarioDetailLayer');
+    buildLobbyPageShell(
+      this.scenarioDetailLayer,
+      '剧本详情',
+      '确认史段后选择势力',
+      () => this.showScreen('scenario'),
+      this,
+    );
+    this.scenarioDetailTitle = this.scenarioDetailLayer.getChildByName('LobbyTitle')!.getComponent(Label)!;
+    this.scenarioDetailBody = createLobbyBody(this.scenarioDetailLayer, 'Body', L.LOBBY_BODY_Y, L.LOBBY_BODY_W, 17);
+    this.scenarioDetailStats = createLobbyBody(this.scenarioDetailLayer, 'Stats', L.LOBBY_DETAIL_STATS_Y, L.LOBBY_BODY_W, 16);
+    this.scenarioDetailStats.color = this.c(COL.menuGold);
+    createTextMenuItem(this.scenarioDetailLayer, 'ToFaction', '选择势力', L.LOBBY_ACTION_Y, () => {
+      this.rebuildFactionButtons();
+      this.showScreen('faction');
+    }, this, 280);
+  }
+
+  private scenarioDetailStats!: Label;
+
+  private refreshScenarioDetail() {
+    const s = this.selectedScenario;
+    const meta = getScenarioMeta(s.id);
+    this.scenarioDetailTitle.string = s.name;
+    const sub = this.scenarioDetailLayer.getChildByName('LobbySubtitle')?.getComponent(Label);
+    if (sub) sub.string = meta.summary;
+    this.scenarioDetailBody.string = meta.detail;
+    const cityN = s.cities.length;
+    const genN = s.generals.length;
+    const wildN = s.wildGenerals?.length ?? 0;
+    this.scenarioDetailStats.string =
+      `初始 ${cityN} 城 · ${genN} 将${wildN > 0 ? ` · 在野 ${wildN} 人` : ''}\n${meta.recommend ?? ''}`;
+  }
+
+  private generalGalleryName!: Label;
+  private generalGalleryPageHint!: Label;
+
+  private buildGeneralGallery() {
+    this.galleryGenerals = buildGalleryCatalog();
+    this.generalGalleryLayer = this.layer('GeneralGalleryLayer');
+    buildLobbyPageShell(
+      this.generalGalleryLayer,
+      '武将图鉴',
+      '览武将风采 · 阅列传生平',
+      () => this.showScreen('menu'),
+      this,
+    );
+    this.generalGalleryPortraitSlot = new Node('PortraitSlot');
+    this.generalGalleryLayer.addChild(this.generalGalleryPortraitSlot);
+    this.generalGalleryPortraitSlot.setPosition(0, L.LOBBY_GALLERY_PORTRAIT_Y, 0);
+    this.generalGalleryPortraitSlot.addComponent(UITransform).setContentSize(220, 280);
+    this.generalGalleryName = createLobbyBody(this.generalGalleryLayer, 'GenName', L.LOBBY_GALLERY_NAME_Y, L.LOBBY_BODY_W, 26);
+    applyLobbyTypography(this.generalGalleryName, 'title');
+    this.generalGalleryName.fontSize = 30;
+    this.generalGalleryBody = createLobbyBody(this.generalGalleryLayer, 'GenStats', L.LOBBY_GALLERY_STATS_Y, L.LOBBY_BODY_W, 17);
+    this.generalGalleryBio = createLobbyBody(this.generalGalleryLayer, 'GenBio', L.LOBBY_GALLERY_BIO_Y, L.LOBBY_BODY_W, 16);
+    this.generalGalleryPageHint = createLobbyPageHint(this.generalGalleryLayer, L.LOBBY_GALLERY_HINT_Y);
+    createLobbyNavPair(
+      this.generalGalleryLayer,
+      L.LOBBY_GALLERY_NAV_Y,
+      () => this.stepGeneralGallery(-1),
+      () => this.stepGeneralGallery(1),
+      this,
+      '◀ 上一位',
+      '下一位 ▶',
+    );
+  }
+
+  private generalGalleryBio!: Label;
+
+  private openGeneralGallery() {
+    this.galleryGeneralIndex = 0;
+    this.refreshGeneralGallery();
+    this.showScreen('generalGallery');
+  }
+
+  private stepGeneralGallery(delta: number) {
+    if (!this.galleryGenerals.length) return;
+    this.galleryGeneralIndex = (this.galleryGeneralIndex + delta + this.galleryGenerals.length) % this.galleryGenerals.length;
+    this.refreshGeneralGallery();
+  }
+
+  private refreshGeneralGallery() {
+    const g = this.galleryGenerals[this.galleryGeneralIndex];
+    if (!g) return;
+    this.generalGalleryPortraitSlot.destroyAllChildren();
+    attachPortraitImage(this.generalGalleryPortraitSlot, g.id, 220, 280);
+    this.generalGalleryName.string = `${g.name}　·　${g.skill}`;
+    this.generalGalleryBody.string =
+      `武 ${g.force}　智 ${g.intelligence}　政 ${g.politics}　魅 ${g.charm}　统 ${g.leadership}`;
+    this.generalGalleryBio.string = `── 列传 ──\n${g.bio}`;
+    this.generalGalleryPageHint.string =
+      `${this.galleryGeneralIndex + 1} / ${this.galleryGenerals.length}`;
+  }
+
+  private buildBackgroundGallery() {
+    this.backgroundGalleryLayer = this.layer('BackgroundGalleryLayer');
+    buildLobbyPageShell(
+      this.backgroundGalleryLayer,
+      '背景图鉴',
+      '预览并设为主菜单背景',
+      () => this.showScreen('menu'),
+      this,
+    );
+    this.backgroundGalleryLabel = createLobbyBody(this.backgroundGalleryLayer, 'BgLabel', L.LOBBY_BG_LABEL_Y, L.LOBBY_BODY_W, 22);
+    applyLobbyTypography(this.backgroundGalleryLabel, 'title');
+    this.backgroundGalleryLabel.fontSize = 24;
+    this.backgroundGalleryHint = createLobbyPageHint(this.backgroundGalleryLayer, L.LOBBY_BG_LABEL_Y - 36);
+    createLobbyNavPair(
+      this.backgroundGalleryLayer,
+      L.LOBBY_BG_NAV_Y,
+      () => this.stepBgGallery(-1),
+      () => this.stepBgGallery(1),
+      this,
+      '◀ 上一张',
+      '下一张 ▶',
+    );
+    createTextMenuItem(this.backgroundGalleryLayer, 'BgApply', '设为主菜单背景', L.LOBBY_BG_ACTION_Y, () => {
+      const id = MENU_BACKGROUNDS[this.galleryBgIndex]?.id;
+      if (!id) return;
+      this.gameSettings.menuBackgroundId = id;
+      this.persistSettings();
+      this.refreshMenuBackground();
+      this.applyLobbyBackground(this.backgroundGalleryLayer);
+      this.toast(`已设为背景：${getMenuBackgroundLabel(id)}`);
+    }, this, 300);
+  }
+
+  private backgroundGalleryHint!: Label;
+
+  private openBackgroundGallery() {
+    this.galleryBgIndex = MENU_BACKGROUNDS.findIndex((b) => b.id === normalizeMenuBackgroundId(this.gameSettings.menuBackgroundId));
+    if (this.galleryBgIndex < 0) this.galleryBgIndex = 0;
+    this.refreshBackgroundGallery();
+    this.showScreen('backgroundGallery');
+  }
+
+  private stepBgGallery(delta: number) {
+    this.galleryBgIndex = (this.galleryBgIndex + delta + MENU_BACKGROUNDS.length) % MENU_BACKGROUNDS.length;
+    this.refreshBackgroundGallery();
+  }
+
+  private refreshBackgroundGallery() {
+    const bg = MENU_BACKGROUNDS[this.galleryBgIndex];
+    if (!bg) return;
+    this.backgroundGalleryLabel.string = bg.label;
+    this.backgroundGalleryHint.string = `${this.galleryBgIndex + 1} / ${MENU_BACKGROUNDS.length}`;
+    applyMenuBackground(this.backgroundGalleryLayer, bg.id);
   }
 
   private cycleGameIcon() {
@@ -377,10 +608,15 @@ export class GameRoot extends Component {
 
   private refreshMenuBrand() {
     const logoOk = applyMenuLogo(this.menuLayer);
-    const iconOk = applyMenuGameIcon(this.menuLayer, this.gameSettings.gameIconId);
     if (this.menuTitleFallback) this.menuTitleFallback.active = !logoOk;
     applyWebFavicon(this.gameSettings.gameIconId);
-    if (!iconOk && !logoOk) return;
+    if (!logoOk) console.warn('[GameRoot] Logo 未加载，请确认 resources/brand/logo2.webp 已导入');
+  }
+
+  private refreshMenuLayers() {
+    this.refreshMenuBackground();
+    this.refreshMenuBrand();
+    this.refreshMainMenuItems();
   }
 
   private cycleMenuBackground() {
@@ -481,16 +717,16 @@ export class GameRoot extends Component {
   }
 
   private refreshSettingsUI() {
-    this.setBtnLabel(this.settingsBgmBtn, `背景音乐: ${this.gameSettings.bgmEnabled ? '开' : '关'}`);
-    this.setBtnLabel(this.settingsSfxBtn, `音效: ${this.gameSettings.sfxEnabled ? '开' : '关'}`);
-    this.setBtnLabel(this.settingsBgmVolBtn, `BGM音量: ${this.volLabel(this.gameSettings.bgmVolume)}`);
-    this.setBtnLabel(this.settingsSfxVolBtn, `音效音量: ${this.volLabel(this.gameSettings.sfxVolume)}`);
-    this.setBtnLabel(this.settingsConfirmBtn, `结束确认: ${this.gameSettings.confirmEndTurn ? '开' : '关'}`);
-    this.setBtnLabel(this.settingsSkipAiBtn, `跳过AI遮罩: ${this.gameSettings.skipAiOverlay ? '开' : '关'}`);
-    this.setBtnLabel(this.settingsCutsceneBtn, `战斗过场: ${this.gameSettings.battleCutscene ? '开' : '关'}`);
-    this.setBtnLabel(this.settingsTacticalBtn, `战术战: ${this.gameSettings.tacticalBattle ? '开' : '关'}`);
-    this.setBtnLabel(this.settingsMenuBgBtn, `主菜单背景: ${getMenuBackgroundLabel(this.gameSettings.menuBackgroundId)}`);
-    this.setBtnLabel(this.settingsGameIconBtn, `游戏图标: ${getGameIconLabel(this.gameSettings.gameIconId)}`);
+    updateTextMenuLabel(this.settingsBgmBtn, `背景音乐 · ${this.gameSettings.bgmEnabled ? '开' : '关'}`);
+    updateTextMenuLabel(this.settingsSfxBtn, `音效 · ${this.gameSettings.sfxEnabled ? '开' : '关'}`);
+    updateTextMenuLabel(this.settingsBgmVolBtn, `BGM 音量 · ${this.volLabel(this.gameSettings.bgmVolume)}`);
+    updateTextMenuLabel(this.settingsSfxVolBtn, `音效音量 · ${this.volLabel(this.gameSettings.sfxVolume)}`);
+    updateTextMenuLabel(this.settingsConfirmBtn, `结束确认 · ${this.gameSettings.confirmEndTurn ? '开' : '关'}`);
+    updateTextMenuLabel(this.settingsSkipAiBtn, `跳过 AI 遮罩 · ${this.gameSettings.skipAiOverlay ? '开' : '关'}`);
+    updateTextMenuLabel(this.settingsCutsceneBtn, `战斗过场 · ${this.gameSettings.battleCutscene ? '开' : '关'}`);
+    updateTextMenuLabel(this.settingsTacticalBtn, `战术战 · ${this.gameSettings.tacticalBattle ? '开' : '关'}`);
+    updateTextMenuLabel(this.settingsMenuBgBtn, `主菜单背景 · ${getMenuBackgroundLabel(this.gameSettings.menuBackgroundId)}`);
+    updateTextMenuLabel(this.settingsGameIconBtn, `游戏图标 · ${getGameIconLabel(this.gameSettings.gameIconId)}`);
   }
 
   private setBtnLabel(btnNode: Node, text: string) {
@@ -499,86 +735,73 @@ export class GameRoot extends Component {
   }
 
   private buildSettings() {
-    this.panelBg(this.settingsLayer, 'Bg', L.W, L.H, 0, COL.mapBg);
-    const bar = new Node('SettingsBar');
-    this.settingsLayer.addChild(bar);
-    bar.setPosition(0, L.SETTINGS_TITLE_Y + 20, 0);
-    bar.addComponent(UITransform).setContentSize(360, 6);
-    drawTitleBar(bar.addComponent(Graphics), 360, 0);
-    const title = this.label(this.settingsLayer, 'Title', '游戏设置', 36, new Vec3(0, L.SETTINGS_TITLE_Y, 0));
-    title.color = this.c(COL.textGold);
-
-    const mkRow = (y: number, name: string, text: string, cb: () => void): Node =>
-      this.btn(this.settingsLayer, name, text, new Vec3(0, y, 0), cb, 320, 50);
-
-    this.settingsBgmBtn = mkRow(L.SETTINGS_ROW_START_Y, 'SetBgm', '背景音乐: 开', () => {
+    buildLobbyPageShell(
+      this.settingsLayer,
+      '设置',
+      '音频 · 玩法 · 外观',
+      () => this.showScreen(this.settingsReturn),
+      this,
+    );
+    const y0 = L.LOBBY_SETTINGS_START_Y;
+    const g = L.LOBBY_SETTINGS_GAP;
+    this.settingsBgmBtn = createLobbySettingRow(this.settingsLayer, 'SetBgm', '背景音乐 · 开', y0, () => {
       this.gameSettings.bgmEnabled = !this.gameSettings.bgmEnabled;
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsSfxBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP, 'SetSfx', '音效: 开', () => {
+    }, this);
+    this.settingsSfxBtn = createLobbySettingRow(this.settingsLayer, 'SetSfx', '音效 · 开', y0 - g, () => {
       this.gameSettings.sfxEnabled = !this.gameSettings.sfxEnabled;
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsBgmVolBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 2, 'SetBgmVol', 'BGM音量: 中', () => {
+    }, this);
+    this.settingsBgmVolBtn = createLobbySettingRow(this.settingsLayer, 'SetBgmVol', 'BGM 音量 · 中', y0 - g * 2, () => {
       this.gameSettings.bgmVolume = this.cycleVol(this.gameSettings.bgmVolume);
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsSfxVolBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 3, 'SetSfxVol', '音效音量: 高', () => {
+    }, this);
+    this.settingsSfxVolBtn = createLobbySettingRow(this.settingsLayer, 'SetSfxVol', '音效音量 · 高', y0 - g * 3, () => {
       this.gameSettings.sfxVolume = this.cycleVol(this.gameSettings.sfxVolume);
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsConfirmBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 4, 'SetConfirm', '结束确认: 开', () => {
+    }, this);
+    this.settingsConfirmBtn = createLobbySettingRow(this.settingsLayer, 'SetConfirm', '结束确认 · 开', y0 - g * 4, () => {
       this.gameSettings.confirmEndTurn = !this.gameSettings.confirmEndTurn;
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsSkipAiBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 5, 'SetSkipAi', '跳过AI遮罩: 关', () => {
+    }, this);
+    this.settingsSkipAiBtn = createLobbySettingRow(this.settingsLayer, 'SetSkipAi', '跳过 AI 遮罩 · 关', y0 - g * 5, () => {
       this.gameSettings.skipAiOverlay = !this.gameSettings.skipAiOverlay;
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsCutsceneBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 6, 'SetCutscene', '战斗过场: 开', () => {
+    }, this);
+    this.settingsCutsceneBtn = createLobbySettingRow(this.settingsLayer, 'SetCutscene', '战斗过场 · 开', y0 - g * 6, () => {
       this.gameSettings.battleCutscene = !this.gameSettings.battleCutscene;
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsTacticalBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 7, 'SetTactical', '战术战: 开', () => {
+    }, this);
+    this.settingsTacticalBtn = createLobbySettingRow(this.settingsLayer, 'SetTactical', '战术战 · 开', y0 - g * 7, () => {
       this.gameSettings.tacticalBattle = !this.gameSettings.tacticalBattle;
       this.persistSettings();
       this.refreshSettingsUI();
-    });
-    this.settingsMenuBgBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 8, 'SetMenuBg', '主菜单背景: 夜行进军', () => {
+    }, this);
+    this.settingsMenuBgBtn = createLobbySettingRow(this.settingsLayer, 'SetMenuBg', '主菜单背景', y0 - g * 8, () => {
       this.cycleMenuBackground();
-    });
-    this.settingsGameIconBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 9, 'SetGameIcon', '游戏图标: 龙纹夜军', () => {
+    }, this);
+    this.settingsGameIconBtn = createLobbySettingRow(this.settingsLayer, 'SetGameIcon', '游戏图标', y0 - g * 9, () => {
       this.cycleGameIcon();
-    });
-
-    this.btn(this.settingsLayer, 'ClearSave', '删除当前槽存档', new Vec3(0, L.SETTINGS_CLEAR_Y, 0), () => {
+    }, this);
+    createLobbySettingRow(this.settingsLayer, 'SettingsEditor', '武将编辑', L.LOBBY_SETTINGS_EXTRA_Y, () => {
+      this.openGeneralEditor();
+    }, this);
+    createLobbySettingRow(this.settingsLayer, 'ClearSave', '删除当前槽存档', L.LOBBY_SETTINGS_DANGER_Y, () => {
       if (gameEngine.hasSaveInSlot(gameEngine.getSaveSlot())) {
         gameEngine.clearSaveSlot(gameEngine.getSaveSlot());
-        this.toast(`槽${gameEngine.getSaveSlot() + 1} 存档已删除`);
+        this.toast(`槽 ${gameEngine.getSaveSlot() + 1} 存档已删除`);
         audioManager.playSuccess();
       } else {
         this.toast('当前槽没有存档');
       }
-    }, 260, 48, false, true);
-
-    this.btn(this.settingsLayer, 'SettingsEditor', '武将编辑', new Vec3(0, L.SETTINGS_EDITOR_Y, 0), () => {
-      this.openGeneralEditor();
-    }, 260, 48);
-
-    this.btn(this.settingsLayer, 'SettingsMenu', '返回主菜单', new Vec3(0, L.SETTINGS_MENU_Y, 0), () => {
-      this.showScreen('menu');
-    }, 200, 44);
-
-    this.btn(this.settingsLayer, 'SettingsBack', '返回', new Vec3(0, L.SETTINGS_BACK_Y, 0), () => {
-      this.showScreen(this.settingsReturn);
-    }, 200, 44);
+    }, this);
   }
 
   private buildTurnOverlay() {
@@ -601,42 +824,41 @@ export class GameRoot extends Component {
   }
 
   private buildScenarioSelect() {
-    this.panelBg(this.scenarioLayer, 'Bg', L.W, L.H, 0, COL.mapBg);
-    const bar = new Node('ScenarioBar');
-    this.scenarioLayer.addChild(bar);
-    bar.setPosition(0, L.FACTION_TITLE_Y + 20, 0);
-    bar.addComponent(UITransform).setContentSize(400, 6);
-    drawTitleBar(bar.addComponent(Graphics), 400, 0);
-    const title = this.label(this.scenarioLayer, 'Title', '选择剧本', 36, new Vec3(0, L.FACTION_TITLE_Y, 0));
-    title.color = this.c(COL.textGold);
+    buildLobbyPageShell(
+      this.scenarioLayer,
+      '选择剧本',
+      '择一段历史，开一局新战役',
+      () => this.showScreen('menu'),
+      this,
+    );
     ALL_SCENARIOS.forEach((s, i) => {
-      const desc = s.id === 'scenario_002' ? `${s.startYear}年 · 在野名将` : `${s.startYear}年 · 三足鼎立`;
-      this.btn(
+      const meta = getScenarioMeta(s.id);
+      const text = `${s.name}\n${meta.summary}`;
+      createTextMenuItem(
         this.scenarioLayer,
         `Scenario_${s.id}`,
-        `${s.name}\n${desc}`,
-        new Vec3(0, L.FACTION_START_Y - i * L.FACTION_GAP, 0),
+        text,
+        L.LOBBY_LIST_START_Y - i * (L.LOBBY_LIST_GAP + 12),
         () => {
           this.selectedScenario = s;
-          this.rebuildFactionButtons();
-          this.showScreen('faction');
+          this.refreshScenarioDetail();
+          this.showScreen('scenarioDetail');
         },
-        320,
-        64,
+        this,
+        L.LOBBY_BODY_W,
       );
     });
-    this.btn(this.scenarioLayer, 'Back', '返回', new Vec3(0, -480, 0), () => this.showScreen('menu'), 160, 44);
   }
 
   private rebuildFactionButtons() {
     this.factionBtnContainer.destroyAllChildren();
+    this.activeSaveSlot = gameEngine.getSaveSlot();
     this.selectedScenario.factions.forEach((f, i) => {
-      const col = hexToColor(f.color);
-      const btnNode = this.btn(
+      createTextMenuItem(
         this.factionBtnContainer,
         `Faction_${f.id}`,
-        `${f.name}    ${f.rulerName}`,
-        new Vec3(0, L.FACTION_START_Y - 80 - i * L.FACTION_GAP, 0),
+        `${f.name}　${f.rulerName}`,
+        L.LOBBY_LIST_START_Y - i * L.LOBBY_LIST_GAP,
         () => {
           gameEngine.setSaveSlot(this.activeSaveSlot);
           gameEngine.newGame(this.selectedScenario, f.id);
@@ -644,36 +866,23 @@ export class GameRoot extends Component {
           this.showScreen('map');
           this.refreshMap();
         },
-        320,
-        58,
-        false,
-        false,
-        { r: Math.floor(col.r * 0.45), g: Math.floor(col.g * 0.45), b: Math.floor(col.b * 0.45), a: 255 },
+        this,
+        420,
       );
-      const stripe = new Node('Stripe');
-      btnNode.addChild(stripe);
-      stripe.setPosition(-150, 0, 0);
-      stripe.addComponent(UITransform).setContentSize(8, 40);
-      const sg = stripe.addComponent(Graphics);
-      sg.fillColor = col;
-      sg.roundRect(-4, -20, 8, 40, 2);
-      sg.fill();
     });
   }
 
   private buildFactionSelect() {
-    this.panelBg(this.factionLayer, 'Bg', L.W, L.H, 0, COL.mapBg);
-    const bar = new Node('FactionBar');
-    this.factionLayer.addChild(bar);
-    bar.setPosition(0, L.FACTION_TITLE_Y + 20, 0);
-    bar.addComponent(UITransform).setContentSize(400, 6);
-    drawTitleBar(bar.addComponent(Graphics), 400, 0);
-    const title = this.label(this.factionLayer, 'Title', '选择势力', 36, new Vec3(0, L.FACTION_TITLE_Y, 0));
-    title.color = this.c(COL.textGold);
+    buildLobbyPageShell(
+      this.factionLayer,
+      '选择势力',
+      '择君主而事，定天下归属',
+      () => this.showScreen('scenarioDetail'),
+      this,
+    );
     this.factionBtnContainer = new Node('FactionBtns');
     this.factionLayer.addChild(this.factionBtnContainer);
     this.rebuildFactionButtons();
-    this.btn(this.factionLayer, 'Back', '返回', new Vec3(0, -480, 0), () => this.showScreen('scenario'), 160, 44);
   }
 
   private buildMapScreen() {
@@ -1271,7 +1480,16 @@ export class GameRoot extends Component {
   // ── 屏幕切换 ──
 
   private isLobbyScreen(s: Screen): boolean {
-    return s === 'menu' || s === 'scenario' || s === 'faction' || s === 'settings';
+    return (
+      s === 'menu'
+      || s === 'saveList'
+      || s === 'scenario'
+      || s === 'scenarioDetail'
+      || s === 'faction'
+      || s === 'generalGallery'
+      || s === 'backgroundGallery'
+      || s === 'settings'
+    );
   }
 
   private refreshScreenBgm(s: Screen) {
@@ -1287,13 +1505,28 @@ export class GameRoot extends Component {
   private showScreen(s: Screen) {
     this.screen = s;
     this.menuLayer.active = s === 'menu';
-    if (s === 'menu') {
-      this.refreshMenuBackground();
-      this.refreshMenuBrand();
+    if (s === 'menu') this.refreshMenuLayers();
+    this.saveListLayer.active = s === 'saveList';
+    if (s === 'saveList') {
+      this.applyLobbyBackground(this.saveListLayer);
+      this.refreshSaveList();
     }
     this.scenarioLayer.active = s === 'scenario';
+    if (s === 'scenario') this.applyLobbyBackground(this.scenarioLayer);
+    this.scenarioDetailLayer.active = s === 'scenarioDetail';
+    if (s === 'scenarioDetail') this.applyLobbyBackground(this.scenarioDetailLayer);
     this.factionLayer.active = s === 'faction';
+    if (s === 'faction') {
+      this.applyLobbyBackground(this.factionLayer);
+      const sub = this.factionLayer.getChildByName('LobbySubtitle')?.getComponent(Label);
+      if (sub && this.selectedScenario) sub.string = `${this.selectedScenario.name} · 择君主而事`;
+    }
+    this.generalGalleryLayer.active = s === 'generalGallery';
+    if (s === 'generalGallery') this.applyLobbyBackground(this.generalGalleryLayer);
+    this.backgroundGalleryLayer.active = s === 'backgroundGallery';
+    if (s === 'backgroundGallery') this.applyLobbyBackground(this.backgroundGalleryLayer);
     this.settingsLayer.active = s === 'settings';
+    if (s === 'settings') this.applyLobbyBackground(this.settingsLayer);
     this.mapLayer.active = s === 'map';
     this.endLayer.active = s === 'end';
     this.logPanel.active = false;

@@ -12,7 +12,7 @@ export const GAME_ICONS: GameIconDef[] = [
 ];
 
 export const DEFAULT_GAME_ICON_ID = GAME_ICONS[0].id;
-export const GAME_LOGO_ID = 'logo';
+export const GAME_LOGO_ID = 'logo2';
 
 export function normalizeGameIconId(id: string | undefined | null): string {
   if (id && GAME_ICONS.some((i) => i.id === id)) return id;

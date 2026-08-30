@@ -83,6 +83,13 @@ export function loadFromStorage(slot = getActiveSlot()): GameState | null {
   return null;
 }
 
+export function hasAnySave(): boolean {
+  for (let i = 0; i < MAX_SAVE_SLOTS; i++) {
+    if (hasSave(i)) return true;
+  }
+  return false;
+}
+
 export function hasSave(slot = getActiveSlot()): boolean {
   try {
     if (typeof localStorage !== 'undefined') {

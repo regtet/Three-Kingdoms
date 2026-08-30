@@ -1,8 +1,8 @@
-import { Node, UITransform, view, ResolutionPolicy } from 'cc';
+import { Camera, Node, UITransform, view, ResolutionPolicy } from 'cc';
 import { L } from './OfficialLayout';
 
-/** 屏幕适配：设计分辨率 720×1280（不用 Widget，避免预览卡死） */
-export function applyScreenAdapt(root: Node): void {
+/** 屏幕适配：设计分辨率 720×1280，等比缩放不变形 */
+export function applyScreenAdapt(root: Node, camera?: Camera | null): void {
   const frame = view.getVisibleSize();
   const designW = L.W;
   const designH = L.H;
@@ -15,9 +15,14 @@ export function applyScreenAdapt(root: Node): void {
     view.setDesignResolutionSize(designW, designH, ResolutionPolicy.FIXED_WIDTH);
   }
 
+  const visible = view.getVisibleSize();
   const tf = root.getComponent(UITransform);
   if (tf) {
     tf.setContentSize(designW, designH);
+  }
+
+  if (camera) {
+    camera.orthoHeight = visible.height / 2;
   }
 }
 
