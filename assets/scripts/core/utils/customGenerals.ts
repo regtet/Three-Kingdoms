@@ -15,6 +15,14 @@ export function loadCustomGenerals(): CustomGeneralDef[] {
   }
 }
 
+export function saveCustomGenerals(generals: CustomGeneralDef[]): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CUSTOM_GENERALS_KEY, JSON.stringify(generals));
+    }
+  } catch { /* ignore */ }
+}
+
 export function applyCustomGeneralsToScenario(generals: ScenarioGeneralDef[]): ScenarioGeneralDef[] {
   const customs = loadCustomGenerals();
   if (customs.length === 0) return generals;
