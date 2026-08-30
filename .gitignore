@@ -9,7 +9,12 @@ temp/
 local/
 build/
 profiles/
+!build-config/
+!build-assets/
 native
+!native/engine/android/app/AndroidManifest.xml
+!native/engine/android/res/
+!native/engine/android/res/**
 #//////////////////////////
 # NPM
 #//////////////////////////

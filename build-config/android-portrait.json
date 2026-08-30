@@ -1,0 +1,17 @@
+{
+  "title": "Three-Kingdoms",
+  "platform": "android",
+  "buildPath": "project://build",
+  "debug": false,
+  "packages": {
+    "android": {
+      "orientation": {
+        "portrait": true,
+        "upsideDown": false,
+        "landscapeLeft": false,
+        "landscapeRight": false
+      },
+      "packageName": "com.threekingdoms.hegemony"
+    }
+  }
+}

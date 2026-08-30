@@ -1,4 +1,4 @@
-import { _decorator, Camera, Component, director, Node, Canvas, UITransform, Size, view, ResolutionPolicy } from 'cc';
+import { _decorator, Camera, Canvas, Component, director, macro, Node, UITransform, Size, view, ResolutionPolicy } from 'cc';
 import { GameRoot } from './GameRoot';
 import { CocosAudioBridge } from './CocosAudioBridge';
 import { applyScreenAdapt } from './ScreenAdapt';
@@ -14,6 +14,8 @@ const { ccclass } = _decorator;
 export class GameBootstrap extends Component {
   onLoad() {
     console.log('[GameBootstrap] 启动…');
+    view.setOrientation(macro.ORIENTATION_PORTRAIT);
+
     const scene = director.getScene()!;
 
     let canvas = scene.getComponentInChildren(Canvas);

@@ -13,10 +13,13 @@
     "generate:portraits": "tsx scripts/generate-portraits.ts",
     "import:portraits": "tsx scripts/import-stitch-portraits.ts",
     "sync:portraits": "tsx scripts/sync-portraits-webp.ts",
-    "sync:backgrounds": "tsx scripts/sync-backgrounds-webp.ts"
+    "sync:backgrounds": "tsx scripts/sync-backgrounds-webp.ts",
+    "prepare:icons": "tsx scripts/prepare-build-icons.ts",
+    "setup:build": "npm run prepare:icons && tsx scripts/setup-build-profile.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "sharp": "^0.33.5",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"

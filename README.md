@@ -33,6 +33,20 @@ npm run generate:portraits  # 生成武将立绘 PNG
 
 Cocos Creator：打开 `Game` 场景 → 预览；主菜单应显示 `构建 UI-v1.5.0`。Logo `resources/brand/logo.webp`；游戏图标 7 张（`resources/icons/`）可在设置或主菜单切换；背景 13 张 WebP（`resources/backgrounds/`）。同步命令：`npm run sync:backgrounds`、`npm run sync:portraits`。
 
+### 打包（Android 竖屏 + 启动图标）
+
+游戏 UI 为竖屏 720×1280。打包前执行：
+
+```bash
+npm run setup:build   # 生成 PNG 图标、写入竖屏配置、替换 native/res 启动图标
+```
+
+然后在 Cocos **构建发布 → Android** 中确认：
+- **屏幕方向**：仅勾选 **Portrait**（竖屏）
+- 重新 **构建** 并 **生成** APK
+
+说明：`resources/icons/` 仅用于游戏内显示；桌面启动图标来自 `build-assets/icons/app-icon.png`（默认 icon_01），由 `setup:build` 写入 `native/engine/android/res/mipmap-*/ic_launcher.png`。
+
 ## 开发路线
 
 | 阶段 | 内容 | 状态 |
