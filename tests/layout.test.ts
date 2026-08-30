@@ -70,10 +70,16 @@ describe('layout constants', () => {
   });
 
   it('settings rows do not overlap each other', () => {
-    const rows = Array.from({ length: 8 }, (_, i) =>
+    const rows = Array.from({ length: 10 }, (_, i) =>
       layoutBand(L.SETTINGS_ROW_START_Y - i * L.SETTINGS_ROW_GAP, 50));
     for (let i = 0; i < rows.length - 1; i++) {
       expect(layoutGapAbove(rows[i], rows[i + 1])).toBeGreaterThanOrEqual(MIN_GAP);
     }
+  });
+
+  it('menu switch buttons sit below note without overlap', () => {
+    const note = layoutBand(L.MENU_NOTE_Y, 20);
+    const bgBtn = layoutBand(L.MENU_BG_BTN_Y, 40);
+    expect(layoutGapAbove(note, bgBtn)).toBeGreaterThanOrEqual(MIN_GAP);
   });
 });

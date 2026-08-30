@@ -31,7 +31,7 @@ npm run generate:audio      # 生成 WAV 音效
 npm run generate:portraits  # 生成武将立绘 PNG
 ```
 
-Cocos Creator：打开 `Game` 场景 → 预览；主菜单应显示 `构建 UI-v1.3.0`。开场视频 `resources/video/intro.mp4`，大厅 BGM `resources/audio/menu_bgm.mp3`。
+Cocos Creator：打开 `Game` 场景 → 预览；主菜单应显示 `构建 UI-v1.5.0`。Logo `resources/brand/logo.webp`；游戏图标 7 张（`resources/icons/`）可在设置或主菜单切换；背景 13 张 WebP（`resources/backgrounds/`）。同步命令：`npm run sync:backgrounds`、`npm run sync:portraits`。
 
 ## 开发路线
 

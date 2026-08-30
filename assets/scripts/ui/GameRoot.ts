@@ -29,6 +29,10 @@ import { getRecruitEfficiency } from '../core/systems/recruit';
 import { MAX_SAVE_SLOTS } from '../core/systems/save';
 import { createPortraitDisplay } from './GeneralPortrait';
 import { preloadPortraits } from './PortraitLoader';
+import { applyMenuBackground, preloadMenuBackgrounds } from './MenuBackground';
+import { applyMenuGameIcon, applyMenuLogo, applyWebFavicon, preloadBrandAssets } from './BrandAssets';
+import { getMenuBackgroundLabel, nextMenuBackgroundId } from '../core/data/menuBackgrounds';
+import { getGameIconLabel, nextGameIconId } from '../core/data/gameIcons';
 import { buildFactionLegend, refreshNeighborHighlights } from './MapVisual';
 import { refreshStrategicMapLayer } from './StrategicMap';
 import { buildGeneralEditorPanel } from './GeneralEditor';
@@ -62,7 +66,7 @@ const { ccclass } = _decorator;
 
 const TUTORIAL_KEY = 'tk_tutorial_seen';
 /** 改 UI 后看主菜单副标题是否为此版本，否则说明 Cocos 未加载最新脚本 */
-const UI_BUILD_TAG = 'UI-v1.3.0';
+const UI_BUILD_TAG = 'UI-v1.5.0';
 
 type Screen = 'menu' | 'scenario' | 'faction' | 'map' | 'end' | 'settings';
 @ccclass('GameRoot')
@@ -144,6 +148,10 @@ export class GameRoot extends Component {
   private settingsConfirmBtn!: Node;
   private settingsSkipAiBtn!: Node;
   private settingsCutsceneBtn!: Node;
+  private settingsMenuBgBtn!: Node;
+  private settingsGameIconBtn!: Node;
+  private menuBgFallback!: Node;
+  private menuTitleFallback!: Node;
   private activeSaveSlot = 0;
   private genPickerSort: 'force' | 'intelligence' | 'loyalty' = 'force';
   private genPickerPage = 0;
@@ -173,6 +181,8 @@ export class GameRoot extends Component {
           this.buildCategoryButtons(this.activeCategory, city);
         }
       });
+      preloadMenuBackgrounds(() => this.refreshMenuBackground());
+      preloadBrandAssets(() => this.refreshMenuBrand());
       playIntroVideo(this.root, () => {
         this.showScreen('menu');
       });
@@ -299,17 +309,28 @@ export class GameRoot extends Component {
   }
 
   private buildMenu() {
-    this.panelBg(this.menuLayer, 'Bg', L.W, L.H, 0, COL.mapBg, { r: 60, g: 80, b: 120, a: 80 });
+    this.menuBgFallback = this.panelBg(this.menuLayer, 'Bg', L.W, L.H, 0, COL.mapBg, { r: 60, g: 80, b: 120, a: 80 });
+    const dim = new Node('MenuBgDim');
+    this.menuLayer.insertChild(dim, 1);
+    dim.setPosition(0, 0, 0);
+    dim.addComponent(UITransform).setContentSize(L.W, L.H);
+    const dimG = dim.addComponent(Graphics);
+    dimG.fillColor = toColor({ r: 8, g: 12, b: 22, a: 140 });
+    dimG.rect(-L.W / 2, -L.H / 2, L.W, L.H);
+    dimG.fill();
     const deco = new Node('MenuDeco');
     this.menuLayer.addChild(deco);
-    deco.setPosition(0, L.MENU_TITLE_Y - 20, 0);
+    deco.setPosition(0, L.MENU_LOGO_Y, 0);
     deco.addComponent(UITransform).setContentSize(400, 400);
     const dg = deco.addComponent(Graphics);
     drawTitleBar(dg, 480, 0);
-    const title = this.label(this.menuLayer, 'Title', '三国志', 52, new Vec3(0, L.MENU_TITLE_Y + 20, 0), 680);
+
+    this.menuTitleFallback = new Node('MenuTitleFallback');
+    this.menuLayer.addChild(this.menuTitleFallback);
+    const title = this.label(this.menuTitleFallback, 'Title', '三国志', 52, new Vec3(0, L.MENU_ICON_Y + 30, 0), 680);
     title.color = this.c(COL.textGold);
-    this.label(this.menuLayer, 'SubTitle', '天 下 争 锋', 28, new Vec3(0, L.MENU_TITLE_Y - 30, 0)).color = this.c(COL.text);
-    this.label(this.menuLayer, 'Sub', `构建 ${UI_BUILD_TAG}`, 16, new Vec3(0, L.MENU_TITLE_Y - 70, 0)).color = this.c(COL.textDim);
+    this.label(this.menuTitleFallback, 'SubTitle', '天 下 争 锋', 28, new Vec3(0, L.MENU_LOGO_Y - 10, 0)).color = this.c(COL.text);
+    this.label(this.menuLayer, 'Sub', `构建 ${UI_BUILD_TAG}`, 16, new Vec3(0, L.MENU_BUILD_TAG_Y, 0)).color = this.c(COL.textDim);
 
     const card = new Node('MenuCard');
     this.menuLayer.addChild(card);
@@ -337,6 +358,42 @@ export class GameRoot extends Component {
     const note = this.label(this.menuLayer, 'MenuNote', '存档槽详情在「继续游戏」中选择', 14, new Vec3(0, L.MENU_NOTE_Y, 0), 680);
     note.color = this.c(COL.textDim);
     note.horizontalAlign = Label.HorizontalAlign.CENTER;
+
+    this.btn(this.menuLayer, 'MenuBgSwitch', '切换背景', new Vec3(L.MENU_BG_BTN_X, L.MENU_BG_BTN_Y, 0), () => {
+      this.cycleMenuBackground();
+    }, 160, 40);
+    this.btn(this.menuLayer, 'MenuIconSwitch', '切换图标', new Vec3(L.MENU_ICON_BTN_X, L.MENU_BG_BTN_Y, 0), () => {
+      this.cycleGameIcon();
+    }, 160, 40);
+  }
+
+  private cycleGameIcon() {
+    this.gameSettings.gameIconId = nextGameIconId(this.gameSettings.gameIconId);
+    this.persistSettings();
+    this.refreshMenuBrand();
+    this.refreshSettingsUI();
+    this.toast(`图标：${getGameIconLabel(this.gameSettings.gameIconId)}`);
+  }
+
+  private refreshMenuBrand() {
+    const logoOk = applyMenuLogo(this.menuLayer);
+    const iconOk = applyMenuGameIcon(this.menuLayer, this.gameSettings.gameIconId);
+    if (this.menuTitleFallback) this.menuTitleFallback.active = !logoOk;
+    applyWebFavicon(this.gameSettings.gameIconId);
+    if (!iconOk && !logoOk) return;
+  }
+
+  private cycleMenuBackground() {
+    this.gameSettings.menuBackgroundId = nextMenuBackgroundId(this.gameSettings.menuBackgroundId);
+    this.persistSettings();
+    this.refreshMenuBackground();
+    this.refreshSettingsUI();
+    this.toast(`背景：${getMenuBackgroundLabel(this.gameSettings.menuBackgroundId)}`);
+  }
+
+  private refreshMenuBackground() {
+    const ok = applyMenuBackground(this.menuLayer, this.gameSettings.menuBackgroundId);
+    if (this.menuBgFallback) this.menuBgFallback.active = !ok;
   }
 
   private openSaveSlotPicker(forNewGame: boolean) {
@@ -432,6 +489,8 @@ export class GameRoot extends Component {
     this.setBtnLabel(this.settingsSkipAiBtn, `跳过AI遮罩: ${this.gameSettings.skipAiOverlay ? '开' : '关'}`);
     this.setBtnLabel(this.settingsCutsceneBtn, `战斗过场: ${this.gameSettings.battleCutscene ? '开' : '关'}`);
     this.setBtnLabel(this.settingsTacticalBtn, `战术战: ${this.gameSettings.tacticalBattle ? '开' : '关'}`);
+    this.setBtnLabel(this.settingsMenuBgBtn, `主菜单背景: ${getMenuBackgroundLabel(this.gameSettings.menuBackgroundId)}`);
+    this.setBtnLabel(this.settingsGameIconBtn, `游戏图标: ${getGameIconLabel(this.gameSettings.gameIconId)}`);
   }
 
   private setBtnLabel(btnNode: Node, text: string) {
@@ -491,6 +550,12 @@ export class GameRoot extends Component {
       this.gameSettings.tacticalBattle = !this.gameSettings.tacticalBattle;
       this.persistSettings();
       this.refreshSettingsUI();
+    });
+    this.settingsMenuBgBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 8, 'SetMenuBg', '主菜单背景: 夜行进军', () => {
+      this.cycleMenuBackground();
+    });
+    this.settingsGameIconBtn = mkRow(L.SETTINGS_ROW_START_Y - L.SETTINGS_ROW_GAP * 9, 'SetGameIcon', '游戏图标: 龙纹夜军', () => {
+      this.cycleGameIcon();
     });
 
     this.btn(this.settingsLayer, 'ClearSave', '删除当前槽存档', new Vec3(0, L.SETTINGS_CLEAR_Y, 0), () => {
@@ -1222,6 +1287,10 @@ export class GameRoot extends Component {
   private showScreen(s: Screen) {
     this.screen = s;
     this.menuLayer.active = s === 'menu';
+    if (s === 'menu') {
+      this.refreshMenuBackground();
+      this.refreshMenuBrand();
+    }
     this.scenarioLayer.active = s === 'scenario';
     this.factionLayer.active = s === 'faction';
     this.settingsLayer.active = s === 'settings';

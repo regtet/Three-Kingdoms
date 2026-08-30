@@ -1,3 +1,6 @@
+import { DEFAULT_MENU_BACKGROUND_ID, normalizeMenuBackgroundId } from '../core/data/menuBackgrounds';
+import { DEFAULT_GAME_ICON_ID, normalizeGameIconId } from '../core/data/gameIcons';
+
 export interface GameSettings {
   bgmEnabled: boolean;
   sfxEnabled: boolean;
@@ -7,6 +10,8 @@ export interface GameSettings {
   skipAiOverlay: boolean;
   battleCutscene: boolean;
   tacticalBattle: boolean;
+  menuBackgroundId: string;
+  gameIconId: string;
 }
 
 const SETTINGS_KEY = 'tk_settings';
@@ -20,6 +25,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   skipAiOverlay: false,
   battleCutscene: true,
   tacticalBattle: true,
+  menuBackgroundId: DEFAULT_MENU_BACKGROUND_ID,
+  gameIconId: DEFAULT_GAME_ICON_ID,
 };
 
 export function loadSettings(): GameSettings {
@@ -37,6 +44,8 @@ export function loadSettings(): GameSettings {
       skipAiOverlay: data.skipAiOverlay ?? DEFAULT_SETTINGS.skipAiOverlay,
       battleCutscene: data.battleCutscene ?? DEFAULT_SETTINGS.battleCutscene,
       tacticalBattle: data.tacticalBattle ?? DEFAULT_SETTINGS.tacticalBattle,
+      menuBackgroundId: normalizeMenuBackgroundId(data.menuBackgroundId ?? DEFAULT_SETTINGS.menuBackgroundId),
+      gameIconId: normalizeGameIconId(data.gameIconId ?? DEFAULT_SETTINGS.gameIconId),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
