@@ -31,23 +31,27 @@ npm run generate:audio      # 生成 WAV 音效
 npm run generate:portraits  # 生成武将立绘 PNG
 ```
 
-Cocos Creator：打开 `Game` 场景 → 预览；主菜单右下角应显示 `UI-v1.7.0`。Logo 使用 `resources/brand/logo2.webp`。
+Cocos Creator：打开 `Game` 场景 → 预览；主菜单右下角应显示 `UI-v1.9.1`。Logo 使用 `resources/brand/logo2.webp`。
 
-大厅二级页（存档列表、选剧本、剧本详情、选势力、武将图鉴、背景图鉴、设置）统一为文字菜单 + 大厅背景风格。
+启动时会全屏播放开场视频（`resources/video/intro.mp4`，竖屏 cover，可点「跳过」）。
+
+大厅二级页统一为文字菜单 + 大厅背景风格。武将图鉴为兵种筛选 + **可滚动表格**（上下滑动浏览全部武将）。
 
 ### 打包（Android 竖屏 + 启动图标）
 
 游戏 UI 为竖屏 720×1280。打包前执行：
 
 ```bash
-npm run setup:build   # 生成 PNG 图标、写入竖屏配置、替换 native/res 启动图标
+npm run setup:build   # 竖屏、关 Cocos 闪屏、应用名、替换 native 启动图标
 ```
 
 然后在 Cocos **构建发布 → Android** 中确认：
 - **屏幕方向**：仅勾选 **Portrait**（竖屏）
+- **取消勾选**「使用 Splash Screen」（Created with Cocos）
+- **应用名**：三国志 · 天下争锋
 - 重新 **构建** 并 **生成** APK
 
-说明：`resources/icons/` 仅用于游戏内显示；桌面启动图标来自 `build-assets/icons/app-icon.png`（默认 icon_01），由 `setup:build` 写入 `native/engine/android/res/mipmap-*/ic_launcher.png`。
+说明：`ScreenAdapt.ts` 使用 `FIXED_HEIGHT` 适配，避免 APK 上下黑边。桌面名来自 `build-assets/android/values/strings.xml`。
 
 ## 开发路线
 

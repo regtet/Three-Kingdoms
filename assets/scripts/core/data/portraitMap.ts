@@ -184,6 +184,17 @@ export const PORTRAIT_ID_ALIASES: Record<string, string> = {
   wild_taishici: 'g_taishici',
 };
 
+/** 按武将 ID 解析立绘资源名（含 pool 前缀与别名） */
+export function resolvePortraitFrameKeys(generalId: string): string[] {
+  const keys: string[] = [generalId];
+  const alias = PORTRAIT_ID_ALIASES[generalId];
+  if (alias) keys.push(alias);
+  if (!generalId.startsWith('g_') && !generalId.startsWith('wild_')) {
+    keys.push(`pool_${generalId}`);
+  }
+  return keys;
+}
+
 /** 游戏中需要立绘但 Stitch 包内暂无的武将（中文名供补图） */
 export const MISSING_GAME_PORTRAITS: { id: string; name: string }[] = [];
 

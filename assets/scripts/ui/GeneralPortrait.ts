@@ -1,7 +1,7 @@
 import { Button, Color, Graphics, Label, Node, UITransform, Vec3 } from 'cc';
 import type { General } from '../core/models/types';
-import { COL } from './OfficialLayout';
-import { attachPortraitImage } from './PortraitLoader';
+import { COL, L } from './OfficialLayout';
+import { attachPortraitImage, attachPortraitToBox } from './PortraitLoader';
 import { drawPanel, hexToColor, toColor } from './UiDraw';
 
 /** HSV → Color（Cocos 3.8 无 Color.fromHSV 静态方法） */
@@ -66,6 +66,100 @@ export function drawPortraitCard(
   g.fillColor = toColor({ r: 80, g: 140, b: 220, a: 255 });
   g.rect(-w / 2 + 8, h / 2 - 22, (w - 16) * (intelligence / 100), 4);
   g.fill();
+}
+
+/** 带矩形背景的立绘容器 */
+export function createPortraitClipBox(w: number, h: number, radius = 6): Node {
+  const root = new Node('PortraitClip');
+  root.addComponent(UITransform).setContentSize(w, h);
+  const g = root.addComponent(Graphics);
+  g.fillColor = toColor({ r: 22, g: 26, b: 34, a: 255 });
+  g.roundRect(-w / 2, -h / 2, w, h, radius);
+  g.fill();
+  return root;
+}
+
+/** 图鉴卡牌立绘（宽度 100%、顶对齐、Mask 裁剪） */
+export function createGalleryCardPortrait(
+  parent: Node,
+  generalId: string,
+  name: string,
+  w = L.LOBBY_GALLERY_DETAIL_PORTRAIT_W,
+  h = L.LOBBY_GALLERY_DETAIL_PORTRAIT_H,
+): Node {
+  const root = new Node('CardPortrait');
+  parent.addChild(root);
+  root.addComponent(UITransform).setContentSize(w, h);
+
+  const clip = createPortraitClipBox(w, h, 6);
+  root.addChild(clip);
+
+  const hasImg = attachPortraitToBox(clip, generalId, w, h, 'widthTop');
+  if (!hasImg) {
+    const charLb = new Node('Char');
+    clip.addChild(charLb);
+    charLb.setPosition(0, 0, 0);
+    charLb.addComponent(UITransform).setContentSize(w, h * 0.5);
+    const cl = charLb.addComponent(Label);
+    cl.string = name.length > 1 ? name.slice(-1) : name;
+    cl.fontSize = Math.round(h * 0.42);
+    cl.lineHeight = Math.round(h * 0.45);
+    cl.horizontalAlign = Label.HorizontalAlign.CENTER;
+    cl.color = toColor(COL.text);
+  }
+  return root;
+}
+
+/** 图鉴详情立绘（宽度 100%、顶对齐 + 金边） */
+export function createGalleryDetailPortrait(
+  parent: Node,
+  generalId: string,
+  name: string,
+  w = L.LOBBY_GALLERY_DETAIL_PORTRAIT_W,
+  h = L.LOBBY_GALLERY_DETAIL_PORTRAIT_H,
+): Node {
+  const root = new Node('DetailPortrait');
+  parent.addChild(root);
+  root.addComponent(UITransform).setContentSize(w + 8, h + 8);
+
+  const frame = root.addComponent(Graphics);
+  drawPanel(frame, w + 8, h + 8, toColor({ r: 18, g: 20, b: 28, a: 255 }), toColor(COL.borderGold), 8);
+
+  const clip = createPortraitClipBox(w, h, 6);
+  root.addChild(clip);
+
+  const hasImg = attachPortraitToBox(clip, generalId, w, h, 'widthTop');
+  if (!hasImg) {
+    const charLb = new Node('Char');
+    clip.addChild(charLb);
+    charLb.setPosition(0, 0, 0);
+    charLb.addComponent(UITransform).setContentSize(w, h * 0.45);
+    const cl = charLb.addComponent(Label);
+    cl.string = name.length > 1 ? name.slice(-1) : name;
+    cl.fontSize = Math.round(h * 0.28);
+    cl.lineHeight = Math.round(h * 0.3);
+    cl.horizontalAlign = Label.HorizontalAlign.CENTER;
+    cl.color = toColor(COL.text);
+  }
+  return root;
+}
+
+/** @deprecated 使用 createGalleryCardPortrait / createGalleryDetailPortrait */
+export function createGalleryPortrait(
+  parent: Node,
+  generalId: string,
+  name: string,
+  force: number,
+  intelligence: number,
+  w = 220,
+  h = 280,
+): Node {
+  void force;
+  void intelligence;
+  if (w >= L.LOBBY_GALLERY_DETAIL_PORTRAIT_W - 1) {
+    return createGalleryDetailPortrait(parent, generalId, name, w, h);
+  }
+  return createGalleryCardPortrait(parent, generalId, name, w, h);
 }
 
 /** 创建可点击武将头像 */

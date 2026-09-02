@@ -1,30 +1,77 @@
 import { ALL_SCENARIOS } from './scenarios/index';
 import { PORTRAIT_POOL_LABELS } from './portraitMap';
+import {
+  filterRosterByTroop,
+  formatRosterBio,
+  primaryTroopKind,
+  resolveGeneralRoster,
+  rosterAptitude,
+  rosterGrade,
+  type GeneralRosterDef,
+  type TroopAdapt,
+  type TroopFilterId,
+  type TroopKind,
+  TROOP_BADGE,
+  TROOP_FILTER_TABS,
+  TROOP_LABELS,
+} from './generalRoster';
 
-/** 图鉴展示条目（不含势力/在野标签） */
+export type GalleryGrade = 'SS' | 'S' | 'A' | 'B';
+
+const FACTION_BY_GENERAL_ID = (() => {
+  const map = new Map<string, string>();
+  for (const scenario of ALL_SCENARIOS) {
+    const names = Object.fromEntries(scenario.factions.map((f) => [f.id, f.name]));
+    for (const g of scenario.generals) {
+      map.set(g.id, names[g.factionId] ?? '—');
+    }
+  }
+  return map;
+})();
+
+/** 图鉴展示条目 */
 export type GalleryGeneral = {
   id: string;
   name: string;
+  faction: string;
   force: number;
   intelligence: number;
   politics: number;
   charm: number;
   leadership: number;
   skill: string;
+  epithet: string;
   bio: string;
+  troop: TroopKind;
+  adapt: TroopAdapt;
+  grade: GalleryGrade;
+  aptitude: number;
+  stars: number;
 };
 
-function inferSkill(force: number, intelligence: number, leadership: number): string {
-  if (intelligence >= 92) return '神算';
-  if (force >= 92) return '武圣';
-  if (leadership >= 90) return '帅才';
-  if (intelligence >= 80) return '奇谋';
-  if (force >= 85) return '猛将';
-  return '均衡';
-}
+export { TROOP_FILTER_TABS, TROOP_LABELS, TROOP_BADGE };
+export type { TroopFilterId, TroopKind, TroopAdapt };
 
-function inferBio(name: string, skill: string): string {
-  return `${name}，三国乱世中的${skill === '神算' ? '运筹帷幄之士' : skill === '武圣' || skill === '猛将' ? '沙场宿将' : '可堪大任之臣'}。史载其性刚毅，多有战功与谋略传世。`;
+function buildGalleryEntry(id: string, fallbackName: string): GalleryGeneral {
+  const r = resolveGeneralRoster(id, fallbackName);
+  return {
+    id,
+    name: r.name,
+    faction: FACTION_BY_GENERAL_ID.get(id) ?? '—',
+    force: r.force,
+    intelligence: r.intelligence,
+    leadership: r.leadership,
+    politics: r.politics,
+    charm: r.charm,
+    skill: r.skill,
+    epithet: r.epithet,
+    bio: formatRosterBio(id, r),
+    troop: primaryTroopKind(r.adapt),
+    adapt: r.adapt,
+    grade: rosterGrade(r),
+    aptitude: rosterAptitude(r),
+    stars: r.star,
+  };
 }
 
 function addEntry(map: Map<string, GalleryGeneral>, entry: GalleryGeneral): void {
@@ -37,35 +84,38 @@ export function buildGalleryCatalog(): GalleryGeneral[] {
 
   for (const scenario of ALL_SCENARIOS) {
     for (const g of scenario.generals) {
-      const skill = inferSkill(g.force, g.intelligence, g.leadership);
-      addEntry(map, {
-        id: g.id,
-        name: g.name,
-        force: g.force,
-        intelligence: g.intelligence,
-        politics: g.politics,
-        charm: g.charm,
-        leadership: g.leadership,
-        skill,
-        bio: inferBio(g.name, skill),
-      });
+      addEntry(map, buildGalleryEntry(g.id, g.name));
     }
   }
 
   for (const [id, name] of Object.entries(PORTRAIT_POOL_LABELS)) {
-    const skill = '名将';
-    addEntry(map, {
-      id,
-      name,
-      force: 72,
-      intelligence: 72,
-      politics: 68,
-      charm: 70,
-      leadership: 72,
-      skill,
-      bio: inferBio(name, skill),
-    });
+    addEntry(map, buildGalleryEntry(id, name));
   }
 
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+  return [...map.values()].sort((a, b) => b.aptitude - a.aptitude || a.name.localeCompare(b.name, 'zh'));
+}
+
+export function filterGalleryByTroop(list: GalleryGeneral[], filter: TroopFilterId): GalleryGeneral[] {
+  if (filter === 'all') return list;
+  return filterRosterByTroop(list, filter) as GalleryGeneral[];
+}
+
+export function galleryPageCount(total: number, pageSize: number): number {
+  return Math.max(1, Math.ceil(total / pageSize));
+}
+
+/** 格式化兵种适性一行（战略版顺序） */
+export function formatTroopAdaptLine(adapt: TroopAdapt): string {
+  const order: TroopKind[] = ['cavalry', 'shield', 'archer', 'spear', 'siege'];
+  return order.map((k) => `${TROOP_LABELS[k]}${adapt[k]}`).join('　');
+}
+
+export function rosterStats(r: GeneralRosterDef) {
+  return {
+    force: r.force,
+    intelligence: r.intelligence,
+    leadership: r.leadership,
+    politics: r.politics,
+    charm: r.charm,
+  };
 }

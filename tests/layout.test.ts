@@ -51,10 +51,10 @@ describe('layout constants', () => {
     expect(L.SUB_FOOTER_Y).toBeGreaterThanOrEqual(-half + 20);
   });
 
-  it('main menu logo sits above text menu items', () => {
-    const logo = layoutBand(L.MENU_LOGO_Y, L.MENU_LOGO_H);
+  it('main menu logo top band sits above text menu items', () => {
+    const logo = { top: L.MENU_LOGO_TOP_Y, bottom: L.MENU_LOGO_TOP_Y - L.MENU_LOGO_H };
     const firstItem = layoutBand(L.MENU_ITEMS_START_Y, L.MENU_ITEM_H);
-    expect(layoutGapAbove(logo, firstItem)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(logo, firstItem)).toBeGreaterThanOrEqual(24);
   });
 
   it('main menu items have vertical spacing', () => {
@@ -103,15 +103,30 @@ describe('layout constants', () => {
     expect(back.bottom).toBeGreaterThan(SCREEN_BOTTOM);
   });
 
-  it('general gallery zones stack without overlap', () => {
-    const portrait = layoutBand(L.LOBBY_GALLERY_PORTRAIT_Y, 280);
-    const name = layoutBand(L.LOBBY_GALLERY_NAME_Y, 36);
-    const stats = layoutBand(L.LOBBY_GALLERY_STATS_Y, 28);
-    const bio = layoutBand(L.LOBBY_GALLERY_BIO_Y, 120);
-    const nav = layoutBand(L.LOBBY_GALLERY_NAV_Y, L.MENU_ITEM_H);
-    expect(layoutGapAbove(portrait, name)).toBeGreaterThanOrEqual(MIN_GAP);
-    expect(layoutGapAbove(name, stats)).toBeGreaterThanOrEqual(MIN_GAP);
-    expect(layoutGapAbove(stats, bio)).toBeGreaterThanOrEqual(MIN_GAP);
-    expect(layoutGapAbove(bio, nav)).toBeGreaterThanOrEqual(MIN_GAP);
+  it('gallery scroll viewport fits on screen', () => {
+    const filter = layoutBand(L.LOBBY_GALLERY_FILTER_Y, 36);
+    const header = layoutBand(L.LOBBY_GALLERY_TABLE_HEADER_Y, L.LOBBY_GALLERY_TABLE_ROW_H);
+    const scroll = layoutBand(L.LOBBY_GALLERY_SCROLL_CENTER_Y, L.LOBBY_GALLERY_SCROLL_H);
+    const count = layoutBand(L.LOBBY_GALLERY_COUNT_Y, 20);
+    const back = layoutBand(L.LOBBY_BACK_Y, L.MENU_ITEM_H);
+    expect(layoutGapAbove(filter, header)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(header, scroll)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(scroll, count)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(count, back)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(L.LOBBY_GALLERY_TABLE_W).toBeLessThanOrEqual(L.W);
+    expect(L.LOBBY_GALLERY_SCROLL_TOP - L.LOBBY_GALLERY_SCROLL_BOTTOM).toBe(L.LOBBY_GALLERY_SCROLL_H);
+  });
+
+  it('general editor list fits on screen', () => {
+    const title = layoutBand(L.EDITOR_TITLE_Y, 40);
+    const header = layoutBand(L.EDITOR_LIST_HEADER_Y, L.EDITOR_LIST_ROW_H);
+    const rowLast = layoutBand(
+      L.EDITOR_LIST_FIRST_ROW_Y - (L.EDITOR_LIST_ROWS - 1) * L.EDITOR_LIST_ROW_H,
+      L.EDITOR_LIST_ROW_H,
+    );
+    const back = layoutBand(L.EDITOR_BACK_LIST_Y, 44);
+    expect(layoutGapAbove(title, header)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(rowLast, back)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(back.bottom).toBeGreaterThan(SCREEN_BOTTOM);
   });
 });

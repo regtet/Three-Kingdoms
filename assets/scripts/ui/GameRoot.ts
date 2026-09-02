@@ -30,13 +30,22 @@ import { buildTacticalBattlePanel } from './TacticalBattle';
 import { getRecruitEfficiency } from '../core/systems/recruit';
 import { MAX_SAVE_SLOTS } from '../core/systems/save';
 import { createPortraitDisplay } from './GeneralPortrait';
+import {
+  buildGalleryDetailPanel,
+  buildGalleryListShell,
+  createGalleryTableRow,
+  fillGalleryDetail,
+  rebuildGalleryFilters,
+  updateGalleryScrollHeight,
+  type GalleryDetailRefs,
+} from './GeneralGalleryUi';
 import { preloadPortraits } from './PortraitLoader';
 import { applyMenuBackground, preloadMenuBackgrounds } from './MenuBackground';
 import { applyMenuLogo, applyWebFavicon, preloadBrandAssets } from './BrandAssets';
 import { getMenuBackgroundLabel, MENU_BACKGROUNDS, nextMenuBackgroundId, normalizeMenuBackgroundId } from '../core/data/menuBackgrounds';
 import { getGameIconLabel, nextGameIconId } from '../core/data/gameIcons';
 import { getScenarioMeta } from '../core/data/scenarioMeta';
-import { buildGalleryCatalog, type GalleryGeneral } from '../core/data/generalCatalog';
+import { buildGalleryCatalog, filterGalleryByTroop, type GalleryGeneral, type TroopFilterId } from '../core/data/generalCatalog';
 import { hasAnySave } from '../core/systems/save';
 import { formatSaveSlotMenuLine, formatSaveSlotSubline, peekSaveSummary } from '../core/systems/saveSummary';
 import { applyLobbyTypography, createLobbyBack, createLobbyTitle, createTextMenuItem } from './LobbyUi';
@@ -48,7 +57,6 @@ import {
   createLobbySettingRow,
   updateTextMenuLabel,
 } from './LobbyScreens';
-import { attachPortraitImage } from './PortraitLoader';
 import { buildFactionLegend, refreshNeighborHighlights } from './MapVisual';
 import { refreshStrategicMapLayer } from './StrategicMap';
 import { buildGeneralEditorPanel } from './GeneralEditor';
@@ -82,7 +90,7 @@ const { ccclass } = _decorator;
 
 const TUTORIAL_KEY = 'tk_tutorial_seen';
 /** 改 UI 后看主菜单副标题是否为此版本，否则说明 Cocos 未加载最新脚本 */
-const UI_BUILD_TAG = 'UI-v1.7.0';
+const UI_BUILD_TAG = 'UI-v1.9.1';
 
 type Screen =
   | 'menu'
@@ -121,12 +129,16 @@ export class GameRoot extends Component {
   private scenarioDetailLayer!: Node;
   private scenarioDetailBody!: Label;
   private generalGalleryLayer!: Node;
-  private generalGalleryBody!: Label;
-  private generalGalleryPortraitSlot!: Node;
+  private galleryGenerals: GalleryGeneral[] = [];
+  private galleryFilter: TroopFilterId = 'all';
+  private galleryFilterRoot!: Node;
+  private galleryScrollContent!: Node;
+  private galleryScrollView!: import('cc').ScrollView;
+  private galleryCountHint!: Label;
+  private galleryDetail!: GalleryDetailRefs;
   private backgroundGalleryLayer!: Node;
   private backgroundGalleryLabel!: Label;
-  private galleryGenerals: GalleryGeneral[] = [];
-  private galleryGeneralIndex = 0;
+  private backgroundGalleryHint!: Label;
   private galleryBgIndex = 0;
   private scenarioLayer!: Node;
   private factionLayer!: Node;
@@ -221,6 +233,7 @@ export class GameRoot extends Component {
           const city = findCity(gameEngine.state, this.selectedCityId);
           this.buildCategoryButtons(this.activeCategory, city);
         }
+        if (this.screen === 'generalGallery') this.refreshGeneralGallery();
       });
       preloadMenuBackgrounds(() => this.refreshMenuBackground());
       preloadBrandAssets(() => this.refreshMenuLayers());
@@ -358,7 +371,7 @@ export class GameRoot extends Component {
 
     this.menuTitleFallback = new Node('MenuTitleFallback');
     this.menuLayer.addChild(this.menuTitleFallback);
-    const title = this.label(this.menuTitleFallback, 'Title', '三国志 · 天下争锋', 40, new Vec3(0, L.MENU_LOGO_Y, 0), 680);
+    const title = this.label(this.menuTitleFallback, 'Title', '三国志 · 天下争锋', 40, new Vec3(0, L.MENU_TITLE_Y, 0), 680);
     applyLobbyTypography(title, 'title');
     title.string = '三国志 · 天下争锋';
 
@@ -482,65 +495,62 @@ export class GameRoot extends Component {
       `初始 ${cityN} 城 · ${genN} 将${wildN > 0 ? ` · 在野 ${wildN} 人` : ''}\n${meta.recommend ?? ''}`;
   }
 
-  private generalGalleryName!: Label;
-  private generalGalleryPageHint!: Label;
-
   private buildGeneralGallery() {
     this.galleryGenerals = buildGalleryCatalog();
     this.generalGalleryLayer = this.layer('GeneralGalleryLayer');
-    buildLobbyPageShell(
-      this.generalGalleryLayer,
-      '武将图鉴',
-      '览武将风采 · 阅列传生平',
-      () => this.showScreen('menu'),
-      this,
-    );
-    this.generalGalleryPortraitSlot = new Node('PortraitSlot');
-    this.generalGalleryLayer.addChild(this.generalGalleryPortraitSlot);
-    this.generalGalleryPortraitSlot.setPosition(0, L.LOBBY_GALLERY_PORTRAIT_Y, 0);
-    this.generalGalleryPortraitSlot.addComponent(UITransform).setContentSize(220, 280);
-    this.generalGalleryName = createLobbyBody(this.generalGalleryLayer, 'GenName', L.LOBBY_GALLERY_NAME_Y, L.LOBBY_BODY_W, 26);
-    applyLobbyTypography(this.generalGalleryName, 'title');
-    this.generalGalleryName.fontSize = 30;
-    this.generalGalleryBody = createLobbyBody(this.generalGalleryLayer, 'GenStats', L.LOBBY_GALLERY_STATS_Y, L.LOBBY_BODY_W, 17);
-    this.generalGalleryBio = createLobbyBody(this.generalGalleryLayer, 'GenBio', L.LOBBY_GALLERY_BIO_Y, L.LOBBY_BODY_W, 16);
-    this.generalGalleryPageHint = createLobbyPageHint(this.generalGalleryLayer, L.LOBBY_GALLERY_HINT_Y);
-    createLobbyNavPair(
-      this.generalGalleryLayer,
-      L.LOBBY_GALLERY_NAV_Y,
-      () => this.stepGeneralGallery(-1),
-      () => this.stepGeneralGallery(1),
-      this,
-      '◀ 上一位',
-      '下一位 ▶',
-    );
+    const shell = buildGalleryListShell(this.generalGalleryLayer, () => this.showScreen('menu'), this);
+    this.galleryFilterRoot = shell.filterRoot;
+    this.galleryScrollContent = shell.scrollContent;
+    this.galleryScrollView = shell.scrollView;
+    this.galleryCountHint = shell.countHint;
+    this.galleryDetail = buildGalleryDetailPanel(this.generalGalleryLayer, () => this.closeGalleryDetail(), this);
   }
 
-  private generalGalleryBio!: Label;
-
   private openGeneralGallery() {
-    this.galleryGeneralIndex = 0;
+    this.galleryFilter = 'all';
+    this.closeGalleryDetail();
     this.refreshGeneralGallery();
     this.showScreen('generalGallery');
   }
 
-  private stepGeneralGallery(delta: number) {
-    if (!this.galleryGenerals.length) return;
-    this.galleryGeneralIndex = (this.galleryGeneralIndex + delta + this.galleryGenerals.length) % this.galleryGenerals.length;
+  private closeGalleryDetail() {
+    this.galleryDetail.root.active = false;
+  }
+
+  private openGalleryDetail(g: GalleryGeneral) {
+    fillGalleryDetail(this.galleryDetail, g);
+    this.galleryDetail.root.active = true;
+    this.galleryDetail.root.setSiblingIndex(this.generalGalleryLayer.children.length - 1);
+  }
+
+  private getFilteredGallery(): GalleryGeneral[] {
+    return filterGalleryByTroop(this.galleryGenerals, this.galleryFilter);
+  }
+
+  private setGalleryFilter(filter: TroopFilterId) {
+    this.galleryFilter = filter;
     this.refreshGeneralGallery();
   }
 
   private refreshGeneralGallery() {
-    const g = this.galleryGenerals[this.galleryGeneralIndex];
-    if (!g) return;
-    this.generalGalleryPortraitSlot.destroyAllChildren();
-    attachPortraitImage(this.generalGalleryPortraitSlot, g.id, 220, 280);
-    this.generalGalleryName.string = `${g.name}　·　${g.skill}`;
-    this.generalGalleryBody.string =
-      `武 ${g.force}　智 ${g.intelligence}　政 ${g.politics}　魅 ${g.charm}　统 ${g.leadership}`;
-    this.generalGalleryBio.string = `── 列传 ──\n${g.bio}`;
-    this.generalGalleryPageHint.string =
-      `${this.galleryGeneralIndex + 1} / ${this.galleryGenerals.length}`;
+    rebuildGalleryFilters(this.galleryFilterRoot, this.galleryFilter, (id) => this.setGalleryFilter(id), this);
+    this.refreshGeneralGalleryGrid();
+  }
+
+  private refreshGeneralGalleryGrid() {
+    const list = this.getFilteredGallery();
+
+    this.galleryScrollContent.destroyAllChildren();
+    list.forEach((g, i) => {
+      createGalleryTableRow(this.galleryScrollContent, g, i, () => this.openGalleryDetail(g), this);
+    });
+    updateGalleryScrollHeight(this.galleryScrollContent, list.length);
+    this.galleryScrollView.scrollToTop(0.1);
+
+    this.galleryCountHint.string =
+      list.length > 0
+        ? `${this.galleryFilter === 'all' ? '共' : '筛选'} ${list.length} 位 · 上下滑动浏览`
+        : '该兵种暂无武将';
   }
 
   private buildBackgroundGallery() {
@@ -575,8 +585,6 @@ export class GameRoot extends Component {
       this.toast(`已设为背景：${getMenuBackgroundLabel(id)}`);
     }, this, 300);
   }
-
-  private backgroundGalleryHint!: Label;
 
   private openBackgroundGallery() {
     this.galleryBgIndex = MENU_BACKGROUNDS.findIndex((b) => b.id === normalizeMenuBackgroundId(this.gameSettings.menuBackgroundId));
@@ -1523,6 +1531,7 @@ export class GameRoot extends Component {
     }
     this.generalGalleryLayer.active = s === 'generalGallery';
     if (s === 'generalGallery') this.applyLobbyBackground(this.generalGalleryLayer);
+    else this.closeGalleryDetail();
     this.backgroundGalleryLayer.active = s === 'backgroundGallery';
     if (s === 'backgroundGallery') this.applyLobbyBackground(this.backgroundGalleryLayer);
     this.settingsLayer.active = s === 'settings';

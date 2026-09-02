@@ -95,7 +95,7 @@ export function playIntroVideo(parent: Node, onFinish: () => void): Node {
     }
     player.clip = clip;
     player.play();
-    console.log('[IntroVideo] 开始播放 intro.mp4');
+    console.log('[IntroVideo] 开始播放开场视频');
   });
 
   return layer;
