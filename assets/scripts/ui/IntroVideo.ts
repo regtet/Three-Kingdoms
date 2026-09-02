@@ -11,23 +11,26 @@ import {
   VideoPlayer,
 } from 'cc';
 import { COL, L } from './OfficialLayout';
+import { getLobbyLayerSize } from './ScreenAdapt';
 import { fitCover } from './SpriteFit';
 import { drawPanel, toColor } from './UiDraw';
 
 /** 播放开场视频；失败或结束时回调 */
 export function playIntroVideo(parent: Node, onFinish: () => void): Node {
+  const { width: fullW, height: fullH } = getLobbyLayerSize();
+
   const layer = new Node('IntroLayer');
   parent.addChild(layer);
   layer.setSiblingIndex(parent.children.length - 1);
-  layer.addComponent(UITransform).setContentSize(L.W, L.H);
+  layer.addComponent(UITransform).setContentSize(fullW, fullH);
   layer.addComponent(BlockInputEvents);
 
   const bg = new Node('IntroBg');
   layer.addChild(bg);
-  bg.addComponent(UITransform).setContentSize(L.W, L.H);
+  bg.addComponent(UITransform).setContentSize(fullW, fullH);
   const g = bg.addComponent(Graphics);
   g.fillColor = new Color(0, 0, 0, 255);
-  g.rect(-L.W / 2, -L.H / 2, L.W, L.H);
+  g.rect(-fullW / 2, -fullH / 2, fullW, fullH);
   g.fill();
 
   const videoNode = new Node('IntroVideo');
@@ -46,13 +49,13 @@ export function playIntroVideo(parent: Node, onFinish: () => void): Node {
     onFinish();
   };
 
-  /** 竖屏全屏：等比 cover 铺满，不拉伸变形 */
-  const applyVideoCover = (mediaW = 1920, mediaH = 1080) => {
-    const { w, h } = fitCover(L.W, L.H, mediaW, mediaH);
+  /** 竖屏全屏：等比 cover 铺满可见区域（含 FIXED_WIDTH 超长屏），不拉伸变形 */
+  const applyVideoCover = (mediaW = 1080, mediaH = 1920) => {
+    const { w, h } = fitCover(fullW, fullH, mediaW, mediaH);
     const tf = videoNode.getComponent(UITransform) ?? videoNode.addComponent(UITransform);
     tf.setContentSize(w, h);
     tf.setAnchorPoint(0.5, 0.5);
-    console.log(`[IntroVideo] cover ${mediaW}x${mediaH} → ${w}x${h}`);
+    console.log(`[IntroVideo] cover ${mediaW}x${mediaH} → ${w}x${h} (box ${fullW}x${fullH})`);
   };
 
   applyVideoCover();
@@ -70,7 +73,7 @@ export function playIntroVideo(parent: Node, onFinish: () => void): Node {
 
   const skipNode = new Node('SkipIntro');
   layer.addChild(skipNode);
-  skipNode.setPosition(0, -L.H / 2 + 56, 0);
+  skipNode.setPosition(0, -fullH / 2 + 56, 0);
   skipNode.addComponent(UITransform).setContentSize(160, 44);
   drawPanel(skipNode.addComponent(Graphics), 160, 44, toColor(COL.subPanel), toColor(COL.borderGoldDim), 8);
   const skipLb = new Node('Label');

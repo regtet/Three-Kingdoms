@@ -53,7 +53,7 @@ this.subPanel.setSiblingIndex(this.mapLayer.children.length - 1);
 
 ## APK / 竖屏打包
 
-游戏 UI：**720×1280 竖屏**，`ScreenAdapt.ts` 使用 `FIXED_HEIGHT`。
+游戏 UI：**720×1280 竖屏**，`ScreenAdapt.ts` 使用 `FIXED_WIDTH`（保证表格/姓名完整，超长屏可有少量上下留边）。
 
 ```bash
 npm run setup:build   # 竖屏、关闪屏、应用名、启动图标
@@ -61,7 +61,8 @@ npm run setup:build   # 竖屏、关闪屏、应用名、启动图标
 
 | 问题 | 原因 | 处理 |
 |------|------|------|
-| 上下大黑边/空白 | 构建横屏或 `FIXED_WIDTH` | Cocos 仅 Portrait；`ScreenAdapt` fitHeight |
+| 上下大黑边/空白 | 构建横屏或分辨率不对 | Cocos 仅 Portrait；设计 720×1280 |
+| 左右裁切/姓名不全 | `FIXED_HEIGHT` 在窄屏裁切宽度 | `ScreenAdapt` 用 `FIXED_WIDTH` |
 | Created with Cocos 闪屏 | `useSplashScreen: true` | `setup:build` 关闪屏；构建面板取消 Splash |
 | 桌面名不对 | `strings.xml` 未写入 native | `build-assets/android/values/strings.xml` → `setup:build` |
 

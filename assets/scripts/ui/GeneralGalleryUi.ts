@@ -20,28 +20,74 @@ import { createGalleryDetailPortrait } from './GeneralPortrait';
 import { createLobbyBgFallback } from './LobbyScreens';
 import { applyLobbyTypography, createLobbyBack, createLobbyTitle, toCcColor } from './LobbyUi';
 import { COL, L } from './OfficialLayout';
+import { getLobbyLayerSize } from './ScreenAdapt';
 import { drawPanel, toColor } from './UiDraw';
 import { audioManager } from './AudioManager';
 
 type ColorLike = { r: number; g: number; b: number; a: number };
 
-const TABLE_PAD = 12;
-const TABLE_LEFT = -L.LOBBY_GALLERY_TABLE_W / 2 + TABLE_PAD;
+type TableCol = {
+  label: string;
+  x: number;
+  w: number;
+  align: number;
+  anchorX: number;
+  shrink?: boolean;
+};
 
-/** 列宽固定、左缘对齐，避免姓名与表头「武将」重叠 */
-const TABLE_COLS: { label: string; left: number; w: number; align: number }[] = [
-  { label: '姓名', left: TABLE_LEFT, w: 96, align: Label.HorizontalAlign.LEFT },
-  { label: '势力', left: TABLE_LEFT + 96, w: 56, align: Label.HorizontalAlign.CENTER },
-  { label: '统率', left: TABLE_LEFT + 152, w: 56, align: Label.HorizontalAlign.CENTER },
-  { label: '武力', left: TABLE_LEFT + 208, w: 56, align: Label.HorizontalAlign.CENTER },
-  { label: '智力', left: TABLE_LEFT + 264, w: 56, align: Label.HorizontalAlign.CENTER },
-  { label: '政治', left: TABLE_LEFT + 320, w: 56, align: Label.HorizontalAlign.CENTER },
-  { label: '魅力', left: TABLE_LEFT + 376, w: 56, align: Label.HorizontalAlign.CENTER },
-];
+/** 自表格左缘起算列布局（左锚点，避免姓名列被 Mask/字体裁切） */
+function buildGalleryTableCols(tableW: number): TableCol[] {
+  const edgePad = 12;
+  const gap = 4;
+  let x = -tableW / 2 + edgePad;
+  const nameW = 100;
+  const factionW = 48;
+  const statW = 52;
+  const cols: TableCol[] = [
+    {
+      label: '姓名',
+      x,
+      w: nameW,
+      align: Label.HorizontalAlign.LEFT,
+      anchorX: 0,
+      shrink: true,
+    },
+  ];
+  x += nameW + gap;
+  cols.push({
+    label: '势力',
+    x,
+    w: factionW,
+    align: Label.HorizontalAlign.CENTER,
+    anchorX: 0,
+  });
+  x += factionW + gap;
+  for (const label of ['统率', '武力', '智力', '政治', '魅力']) {
+    cols.push({
+      label,
+      x,
+      w: statW,
+      align: Label.HorizontalAlign.CENTER,
+      anchorX: 0,
+    });
+    x += statW + gap;
+  }
+  return cols;
+}
+
+const GALLERY_TABLE_COLS = buildGalleryTableCols(L.LOBBY_GALLERY_TABLE_W);
 
 export function galleryScrollRowY(rowIndex: number): number {
   const h = L.LOBBY_GALLERY_TABLE_ROW_H;
   return -(rowIndex * h + h / 2);
+}
+
+function applyGalleryCellTypography(lb: Label, fontSize: number): void {
+  lb.useSystemFont = true;
+  lb.fontFamily = 'system-ui, sans-serif, "Noto Sans CJK SC", "Droid Sans Fallback"';
+  lb.enableOutline = false;
+  lb.fontSize = fontSize;
+  lb.lineHeight = fontSize + 6;
 }
 
 function mkLabel(
@@ -54,20 +100,21 @@ function mkLabel(
   color: ColorLike,
   w = 120,
   align = Label.HorizontalAlign.CENTER,
+  shrink = false,
+  anchorX = 0.5,
 ): Label {
   const n = new Node(name);
   parent.addChild(n);
   n.setPosition(x, y, 0);
-  n.addComponent(UITransform).setContentSize(w, fontSize + 8);
+  const tf = n.addComponent(UITransform);
+  tf.setContentSize(w, fontSize + 10);
+  tf.setAnchorPoint(anchorX, 0.5);
   const lb = n.addComponent(Label);
   lb.string = text;
-  lb.fontSize = fontSize;
-  lb.lineHeight = fontSize + 4;
   lb.horizontalAlign = align;
-  lb.overflow = Label.Overflow.CLAMP;
+  applyGalleryCellTypography(lb, fontSize);
+  lb.overflow = shrink ? Label.Overflow.SHRINK : Label.Overflow.CLAMP;
   lb.color = toCcColor(color);
-  applyLobbyTypography(lb, 'body');
-  lb.enableOutline = fontSize >= 16;
   return lb;
 }
 
@@ -111,12 +158,8 @@ export function buildGalleryListShell(
   const viewTf = viewport.addComponent(UITransform);
   viewTf.setContentSize(L.LOBBY_GALLERY_TABLE_W, L.LOBBY_GALLERY_SCROLL_H);
 
-  const clipG = viewport.addComponent(Graphics);
-  clipG.fillColor = toColor({ r: 0, g: 0, b: 0, a: 1 });
-  clipG.rect(-L.LOBBY_GALLERY_TABLE_W / 2, -L.LOBBY_GALLERY_SCROLL_H / 2, L.LOBBY_GALLERY_TABLE_W, L.LOBBY_GALLERY_SCROLL_H);
-  clipG.fill();
   const mask = viewport.addComponent(Mask);
-  mask.type = Mask.Type.GRAPHICS_RECT;
+  mask.type = Mask.Type.RECT;
 
   const scrollContent = new Node('GalleryScrollContent');
   viewport.addChild(scrollContent);
@@ -200,19 +243,20 @@ export function createGalleryTableHeader(parent: Node): void {
     toColor(COL.borderGold),
     4,
   );
-  for (const col of TABLE_COLS) {
-    const lb = mkLabel(
+  for (const col of GALLERY_TABLE_COLS) {
+    mkLabel(
       header,
       `H_${col.label}`,
       col.label,
-      col.left + col.w / 2,
+      col.x,
       0,
-      14,
+      15,
       COL.menuGold,
       col.w,
       col.align,
+      !!col.shrink,
+      col.anchorX,
     );
-    lb.enableOutline = false;
   }
 }
 
@@ -254,19 +298,20 @@ export function createGalleryTableRow(
     2,
   );
 
-  TABLE_COLS.forEach((col, i) => {
-    const lb = mkLabel(
+  GALLERY_TABLE_COLS.forEach((col, i) => {
+    mkLabel(
       node,
       `C_${i}`,
       cellText(g, i),
-      col.left + col.w / 2,
+      col.x,
       0,
-      14,
+      15,
       COL.menuText,
       col.w,
       col.align,
+      !!col.shrink,
+      col.anchorX,
     );
-    lb.enableOutline = false;
   });
 
   node.addComponent(Button);
@@ -294,12 +339,13 @@ export function buildGalleryDetailPanel(parent: Node, onClose: () => void, host:
   root.addComponent(BlockInputEvents);
   root.active = false;
 
+  const { width: fullW, height: fullH } = getLobbyLayerSize();
   const dim = new Node('Dim');
   root.addChild(dim);
-  dim.addComponent(UITransform).setContentSize(L.W, L.H);
+  dim.addComponent(UITransform).setContentSize(fullW, fullH);
   const dg = dim.addComponent(Graphics);
   dg.fillColor = toColor({ r: 0, g: 0, b: 0, a: 190 });
-  dg.rect(-L.W / 2, -L.H / 2, L.W, L.H);
+  dg.rect(-fullW / 2, -fullH / 2, fullW, fullH);
   dg.fill();
 
   const card = new Node('DetailCard');
@@ -314,9 +360,11 @@ export function buildGalleryDetailPanel(parent: Node, onClose: () => void, host:
     10,
   );
 
-  const title = mkLabel(card, 'DetailTitle', '', 0, L.LOBBY_GALLERY_DETAIL_H / 2 - 48, 28, COL.menuGold, 600);
+  const title = mkLabel(card, 'DetailTitle', '', 0, L.LOBBY_GALLERY_DETAIL_H / 2 - 48, 28, COL.menuGold, L.LOBBY_GALLERY_DETAIL_W - 48);
   applyLobbyTypography(title, 'title');
   title.fontSize = 30;
+  title.overflow = Label.Overflow.SHRINK;
+  title.horizontalAlign = Label.HorizontalAlign.CENTER;
 
   const portraitSlot = new Node('DetailPortrait');
   card.addChild(portraitSlot);

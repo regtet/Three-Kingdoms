@@ -1,7 +1,7 @@
 import { Node, resources, SpriteFrame } from 'cc';
-import { L } from './OfficialLayout';
 import { normalizeMenuBackgroundId } from '../core/data/menuBackgrounds';
 import { applySpriteCover } from './SpriteFit';
+import { getLobbyLayerSize } from './ScreenAdapt';
 
 const cache = new Map<string, SpriteFrame>();
 let preloadStarted = false;
@@ -46,6 +46,7 @@ export function applyMenuBackground(parent: Node, backgroundId: string): boolean
     parent.insertChild(img, 0);
   }
   img.active = true;
-  applySpriteCover(img, sf, L.W, L.H);
+  const { width, height } = getLobbyLayerSize();
+  applySpriteCover(img, sf, width, height);
   return true;
 }

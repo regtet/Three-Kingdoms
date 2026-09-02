@@ -31,7 +31,7 @@ npm run generate:audio      # 生成 WAV 音效
 npm run generate:portraits  # 生成武将立绘 PNG
 ```
 
-Cocos Creator：打开 `Game` 场景 → 预览；主菜单右下角应显示 `UI-v1.9.1`。Logo 使用 `resources/brand/logo2.webp`。
+Cocos Creator：打开 `Game` 场景 → 预览；主菜单右下角应显示 `UI-v1.9.4`。Logo 使用 `resources/brand/logo2.webp`。
 
 启动时会全屏播放开场视频（`resources/video/intro.mp4`，竖屏 cover，可点「跳过」）。
 
@@ -51,7 +51,7 @@ npm run setup:build   # 竖屏、关 Cocos 闪屏、应用名、替换 native �
 - **应用名**：三国志 · 天下争锋
 - 重新 **构建** 并 **生成** APK
 
-说明：`ScreenAdapt.ts` 使用 `FIXED_HEIGHT` 适配，避免 APK 上下黑边。桌面名来自 `build-assets/android/values/strings.xml`。
+说明：`ScreenAdapt.ts` 使用 **FIXED_WIDTH** 保证 720 设计宽度完整显示（避免 APK 窄屏裁切姓名）；超长屏可能有少量上下留边。桌面名来自 `build-assets/android/values/strings.xml`。
 
 ## 开发路线
 

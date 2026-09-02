@@ -61,6 +61,7 @@ import { buildFactionLegend, refreshNeighborHighlights } from './MapVisual';
 import { refreshStrategicMapLayer } from './StrategicMap';
 import { buildGeneralEditorPanel } from './GeneralEditor';
 import { playIntroVideo } from './IntroVideo';
+import { getLobbyLayerSize } from './ScreenAdapt';
 import {
   buildCityStatusPanel,
   buildGeneralInfoContent,
@@ -90,7 +91,7 @@ const { ccclass } = _decorator;
 
 const TUTORIAL_KEY = 'tk_tutorial_seen';
 /** 改 UI 后看主菜单副标题是否为此版本，否则说明 Cocos 未加载最新脚本 */
-const UI_BUILD_TAG = 'UI-v1.9.1';
+const UI_BUILD_TAG = 'UI-v1.9.4';
 
 type Screen =
   | 'menu'
@@ -299,7 +300,8 @@ export class GameRoot extends Component {
 
   private layer(name: string, block = true): Node {
     const n = new Node(name);
-    n.addComponent(UITransform).setContentSize(L.W, L.H);
+    const { width, height } = getLobbyLayerSize();
+    n.addComponent(UITransform).setContentSize(width, height);
     if (block) n.addComponent(BlockInputEvents);
     this.root.addChild(n);
     n.active = false;
@@ -367,7 +369,8 @@ export class GameRoot extends Component {
   }
 
   private buildMenu() {
-    this.menuBgFallback = this.panelBg(this.menuLayer, 'Bg', L.W, L.H, 0, COL.mapBg, { r: 0, g: 0, b: 0, a: 0 });
+    const { width: lobbyW, height: lobbyH } = getLobbyLayerSize();
+    this.menuBgFallback = this.panelBg(this.menuLayer, 'Bg', lobbyW, lobbyH, 0, COL.mapBg, { r: 0, g: 0, b: 0, a: 0 });
 
     this.menuTitleFallback = new Node('MenuTitleFallback');
     this.menuLayer.addChild(this.menuTitleFallback);

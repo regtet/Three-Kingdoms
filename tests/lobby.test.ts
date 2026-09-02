@@ -40,8 +40,9 @@ describe('generalCatalog', () => {
   });
 
   it('gallery table columns fit within table width', () => {
-    const pad = 12;
-    const used = 96 + 56 * 6 + pad * 2;
+    const edgePad = 12;
+    const gap = 4;
+    const used = edgePad + 100 + gap + 48 + gap + 52 * 5 + gap * 4 + edgePad;
     expect(used).toBeLessThanOrEqual(L.LOBBY_GALLERY_TABLE_W);
   });
 });

@@ -1,5 +1,6 @@
 import { Color, Component, Label, Node, UITransform } from 'cc';
 import { COL, L } from './OfficialLayout';
+import { getLobbyLayerSize } from './ScreenAdapt';
 import {
   applyLobbyTypography,
   createLobbyBack,
@@ -12,7 +13,8 @@ import {
 export function createLobbyBgFallback(parent: Node): Node {
   const n = new Node('BgFallback');
   parent.insertChild(n, 0);
-  n.addComponent(UITransform).setContentSize(L.W, L.H);
+  const { width, height } = getLobbyLayerSize();
+  n.addComponent(UITransform).setContentSize(width, height);
   return n;
 }
 
