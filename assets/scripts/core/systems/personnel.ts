@@ -19,7 +19,10 @@ export function moveGeneral(state: GameState, generalId: string, toCityId: strin
 
   const from = findCity(state, general.cityId);
   from.generalIds = from.generalIds.filter((id) => id !== generalId);
-  if (from.governorId === generalId) from.governorId = null;
+  if (from.governorId === generalId) {
+    from.governorId = null;
+    if (general.status === 'governor') general.status = 'idle';
+  }
 
   general.cityId = toCityId;
   if (!to.generalIds.includes(generalId)) to.generalIds.push(generalId);
@@ -59,6 +62,10 @@ export function appointGovernor(state: GameState, cityId: string, generalId: str
   const act = canGeneralAct(state, generalId);
   if (!act.ok) return { success: false, message: act.message };
 
+  if (city.governorId && city.governorId !== generalId) {
+    const prev = state.generals.find((g) => g.id === city.governorId);
+    if (prev && prev.status === 'governor') prev.status = 'idle';
+  }
   city.governorId = generalId;
   general.status = 'governor';
   markGeneralActed(general);
@@ -73,7 +80,7 @@ export function transport(state: GameState, input: TransportInput): ActionResult
 
 /** 在野武将池（搜索成功时登用） */
 const TALENT_POOL: Omit<General, 'factionId' | 'cityId' | 'status'>[] = [
-  { id: 'g_taishi', name: '太史慈', force: 92, intelligence: 68, leadership: 82, politics: 55, charm: 75, loyalty: 85 },
+  { id: 'g_taishici', name: '太史慈', force: 92, intelligence: 68, leadership: 82, politics: 55, charm: 75, loyalty: 85 },
   { id: 'g_madai', name: '马岱', force: 82, intelligence: 58, leadership: 76, politics: 50, charm: 65, loyalty: 88 },
   { id: 'g_wenchou', name: '文丑', force: 90, intelligence: 45, leadership: 70, politics: 40, charm: 50, loyalty: 80 },
   { id: 'g_yanliang', name: '颜良', force: 91, intelligence: 44, leadership: 72, politics: 42, charm: 52, loyalty: 82 },

@@ -1,6 +1,6 @@
 import type { GameState } from '../models/types';
 import { FORMULAS } from '../data/formulas';
-import { addLog, findCity, getCityGenerals, getFactionCities } from '../utils/helpers';
+import { addLog, findCity, findGeneral, getCityGenerals, getFactionCities } from '../utils/helpers';
 import { getActableGeneralsInCity } from './actionGuard';
 import { executeTransport } from './transport';
 import { aiDevelopCity, aiFarmCity } from './domestic';
@@ -95,6 +95,16 @@ export function runAiTurn(state: GameState): void {
     for (const attack of attacks) {
       const from = findCity(state, attack.fromCityId);
       attack.attackerTroops = Math.min(attack.attackerTroops, from.troops);
+      const atkGen = findGeneral(state, attack.attackerGeneralId);
+      const ambush = FORMULAS.stratagem.ambush;
+      if (
+        atkGen.intelligence >= ambush.minIntelligence
+        && from.gold >= ambush.goldCost
+        && from.food >= ambush.foodCost
+        && Math.random() < 0.35
+      ) {
+        attack.stratagemId = 'ambush';
+      }
       if (attack.attackerTroops >= FORMULAS.ai.minTroopsToAttack) {
         aiExecuteAttack(state, attack);
       }

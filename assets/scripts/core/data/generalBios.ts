@@ -183,6 +183,51 @@ const BIOS: Record<string, GeneralBioEntry> = {
     origin: '汝南汝阳人，东汉末最大诸侯。',
     deeds: '据河北四州，官渡一败由盛转衰。好谋无断，空负名门之资。',
   },
+  yan_liang: {
+    epithet: '河北先锋',
+    origin: '袁绍部将，河北名将。',
+    deeds: '勇冠三军，白马坡为关羽所斩，河北军心由是大沮。',
+  },
+  wen_chou: {
+    epithet: '河北猛将',
+    origin: '袁绍部将，与颜良齐名。',
+    deeds: '颜良既死，复率骑追击，亦为关羽所斩，袁军锋锐尽失。',
+  },
+  ju_shou: {
+    epithet: '远见',
+    origin: '广平人，袁绍谋主。',
+    deeds: '屡谏缓战固守，官渡前力阻出兵。绍不纳，终被囚杀。',
+  },
+  tian_feng: {
+    epithet: '刚直',
+    origin: '钜鹿人，袁绍谋士。',
+    deeds: '谏阻官渡之役，绍怒而囚之。闻败讯，遂自杀以明志。',
+  },
+  shen_pei: {
+    epithet: '刚愎',
+    origin: '魏郡人，袁绍腹心。',
+    deeds: '主战甚力，官渡后守邺。城破被执，骂曹而死。',
+  },
+  gao_lan: {
+    epithet: '降将',
+    origin: '袁绍部将，后归曹操。',
+    deeds: '官渡时与张郃同被疑，遂降曹。后战死。',
+  },
+  zhang_he: {
+    epithet: '巧变',
+    origin: '河间鄚人，初仕袁绍，后归曹操。',
+    deeds: '官渡降曹，数立战功。街亭破马谡，为魏五子良将之一。',
+  },
+  cao_ren: {
+    epithet: '铁壁',
+    origin: '沛国谯人，曹操从弟。',
+    deeds: '守樊城抗关羽，善守善攻，曹魏宗室柱石。',
+  },
+  yu_jin: {
+    epithet: '持军',
+    origin: '泰山钜平人，曹操部将。',
+    deeds: '治军严整。水淹七军时降关羽，晚节受讥。',
+  },
   dong_zhuo: {
     epithet: '太师',
     origin: '陇西临洮人，东汉末权奸。',
@@ -293,7 +338,21 @@ export function getGeneralBio(
   stats: { force: number; intelligence: number; leadership: number; politics: number; charm: number },
   skill: string,
 ): GeneralBioEntry {
-  return BIOS[id] ?? fallbackBio(name, stats.force, stats.intelligence, stats.leadership, stats.politics, stats.charm, skill);
+  const aliases: Record<string, string> = {
+    g_yuanshao: 'yuan_shao',
+    g_yanliang: 'yan_liang',
+    g_wenchou: 'wen_chou',
+    g_tianfeng: 'tian_feng',
+    g_jushou: 'ju_shou',
+    g_shenpei: 'shen_pei',
+    g_gaolan: 'gao_lan',
+    g_zhanghe: 'zhang_he',
+    g_caoren: 'cao_ren',
+    g_yujin: 'yu_jin',
+    wild_zhanghe: 'zhang_he',
+  };
+  const mapped = aliases[id] ?? id;
+  return BIOS[id] ?? BIOS[mapped] ?? fallbackBio(name, stats.force, stats.intelligence, stats.leadership, stats.politics, stats.charm, skill);
 }
 
 export function formatGalleryBio(entry: GeneralBioEntry): string {

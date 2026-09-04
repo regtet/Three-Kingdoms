@@ -6,11 +6,12 @@ import { getActableGeneralsInCity } from '../core/systems/actionGuard';
 import { getMaxRecruitAmount, getRecruitEfficiency } from '../core/systems/recruit';
 import { getStratagemGenerals } from '../core/systems/stratagem';
 import { audioManager } from './AudioManager';
-import { CMD_CATEGORIES, L } from './OfficialLayout';
+import { categoryUsesGeneralPicker, CMD_CATEGORIES, L, type CmdCategory } from './OfficialLayout';
 import { buildGeneralListRow } from './OfficialPanels';
 
-export type CmdCategory = (typeof CMD_CATEGORIES)[number];
+export type { CmdCategory };
 export type GenPickerSortKey = 'force' | 'intelligence' | 'loyalty';
+export { categoryUsesGeneralPicker };
 
 /** GameRoot 子面板宿主（运行时为同一实例，字段可仍为 private） */
 export interface MapSubPanelHost {
@@ -21,6 +22,7 @@ export interface MapSubPanelHost {
   customTransportGold: number;
   customTransportFood: number;
   customTransportTroops: number;
+  stratagemEnemyPage: number;
   selectedCityId: string | null;
   activeCategory: CmdCategory | null;
   subBtnContainer: Node;
@@ -45,10 +47,6 @@ export interface MapSubPanelHost {
   refreshSubFooter(onConfirm?: () => void): void;
   showGeneralInfo(id: string): void;
   setBtnLabel(node: Node, text: string): void;
-}
-
-export function categoryUsesGeneralPicker(cat: CmdCategory): boolean {
-  return cat === '人才' || cat === '计谋' || cat === '内政' || cat === '军事' || cat === '外交';
 }
 
 export function buildGeneralPicker(host: MapSubPanelHost, gens: General[], onPick: (id: string) => void) {
@@ -227,27 +225,28 @@ export function buildCategoryButtons(host: MapSubPanelHost, cat: CmdCategory, ci
       const rebuild = () => buildCategoryButtons(host, '计谋', city);
       buildGeneralPicker(host, gens, () => rebuild());
       const gid = () => host.subGeneralId ?? gens[0].id;
+      if (host.stratagemEnemyPage >= enemies.length) host.stratagemEnemyPage = 0;
+      const e = enemies[host.stratagemEnemyPage];
+      const targetLabel = enemies.length > 1 ? `敌城:${e.name}▸` : `敌城:${e.name}`;
       row([
         ['鼓舞', () => host.actStratagem(() => gameEngine.inspire(city.id, gid()))],
+        [targetLabel, () => {
+          if (enemies.length <= 1) return;
+          host.stratagemEnemyPage = (host.stratagemEnemyPage + 1) % enemies.length;
+          rebuild();
+        }],
+        ['伪书', () => host.actStratagem(() => gameEngine.undermineLoyalty(city.id, gid(), e.id))],
+        ['寝谋', () => host.actStratagem(() => gameEngine.sleeperStratagem(city.id, gid(), e.id))],
       ], L.SUB_ACTION_Y);
-      enemies.forEach((e, ei) => {
-        const y = L.SUB_EXTRA_Y - ei * 42;
-        const mk = (text: string, cb: () => void, bi: number) => {
-          const x = (bi - 1.5) * 128;
-          host.btn(host.subBtnContainer, `${text}_${e.id}`, `${text}·${e.name}`, new Vec3(x, y, 0), cb, 118, 30);
-        };
-        mk('火计', () => host.actStratagem(() => gameEngine.fireAttack(city.id, gid(), e.id)), 0);
-        mk('离间', () => host.actStratagem(() => gameEngine.sowDiscord(city.id, gid(), e.id)), 1);
-        mk('扰乱', () => host.actStratagem(() => gameEngine.disrupt(city.id, gid(), e.id)), 2);
-        mk('伪报', () => host.actStratagem(() => gameEngine.fakeReport(city.id, gid(), e.id)), 3);
-        const y2 = y - 36;
-        host.btn(host.subBtnContainer, `伪书_${e.id}`, `伪书·${e.name}`, new Vec3(-64, y2, 0), () => {
-          host.actStratagem(() => gameEngine.undermineLoyalty(city.id, gid(), e.id));
-        }, 118, 28);
-        host.btn(host.subBtnContainer, `寝谋_${e.id}`, `寝谋·${e.name}`, new Vec3(64, y2, 0), () => {
-          host.actStratagem(() => gameEngine.sleeperStratagem(city.id, gid(), e.id));
-        }, 118, 28);
-      });
+      const y = L.SUB_EXTRA_Y;
+      const mk = (text: string, cb: () => void, bi: number) => {
+        const x = (bi - 1.5) * 128;
+        host.btn(host.subBtnContainer, `${text}_${e.id}`, `${text}·${e.name}`, new Vec3(x, y, 0), cb, 118, 30);
+      };
+      mk('火计', () => host.actStratagem(() => gameEngine.fireAttack(city.id, gid(), e.id)), 0);
+      mk('离间', () => host.actStratagem(() => gameEngine.sowDiscord(city.id, gid(), e.id)), 1);
+      mk('扰乱', () => host.actStratagem(() => gameEngine.disrupt(city.id, gid(), e.id)), 2);
+      mk('伪报', () => host.actStratagem(() => gameEngine.fakeReport(city.id, gid(), e.id)), 3);
       break;
     }
     case '外交': {

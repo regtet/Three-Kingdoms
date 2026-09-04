@@ -166,6 +166,9 @@ export const GENERAL_ROSTER: Record<string, GeneralRosterDef> = {
   wen_chou: def('文丑', 88, 40, 74, 26, 46, '猛将', '丑', ad('S', 'B', 'B', 'S', 'C'), 4),
   ju_shou: def('沮授', 42, 88, 76, 72, 62, '谏绍', '公与', ad('C', 'B', 'A', 'B', 'S'), 4),
   tian_feng: def('田丰', 38, 92, 72, 68, 58, '谏争', '元皓', ad('C', 'B', 'A', 'B', 'S'), 4),
+  shen_pei: def('审配', 48, 82, 78, 70, 52, '刚愎', '正南', ad('C', 'B', 'A', 'B', 'A'), 3),
+  gao_lan: def('高览', 85, 58, 80, 42, 55, '降将', '元图', ad('A', 'B', 'B', 'A', 'C'), 3),
+  zhang_he: def('张郃', 87, 72, 86, 58, 65, '巧变', '儁乂', ad('A', 'A', 'A', 'B', 'B'), 4),
   liu_ye: def('刘晔', 42, 90, 78, 68, 58, '料敌', '子扬', ad('C', 'B', 'A', 'B', 'S'), 4),
   cheng_yu: def('程昱', 48, 88, 76, 62, 48, '十面埋伏', '仲德', ad('C', 'B', 'A', 'B', 'S'), 4),
   guo_huai: def('郭淮', 62, 78, 80, 52, 48, '守陇', '淮', ad('A', 'A', 'B', 'A', 'B'), 3),
@@ -198,9 +201,28 @@ export const GENERAL_ROSTER: Record<string, GeneralRosterDef> = {
   wu_tugu: def('兀突骨', 82, 28, 70, 18, 36, '藤甲', '藤甲王', ad('A', 'S', 'B', 'A', 'C'), 3),
 };
 
+/** 剧本 g_* / wild_* → roster 储备 ID */
+const ROSTER_ID_ALIASES: Record<string, string> = {
+  g_yuanshao: 'yuan_shao',
+  g_yanliang: 'yan_liang',
+  g_wenchou: 'wen_chou',
+  g_tianfeng: 'tian_feng',
+  g_jushou: 'ju_shou',
+  g_shenpei: 'shen_pei',
+  g_gaolan: 'gao_lan',
+  g_zhanghe: 'zhang_he',
+  g_caoren: 'cao_ren',
+  g_yujin: 'yu_jin',
+  wild_zhanghe: 'zhang_he',
+  wild_liubei: 'g_liubei',
+  wild_guanyu: 'g_guanyu',
+  wild_zhangfei: 'g_zhangfei',
+};
+
 /** 获取 roster；未知武将按姓名生成合理默认（仍标注为史册风格） */
 export function resolveGeneralRoster(id: string, fallbackName: string): GeneralRosterDef {
-  const hit = GENERAL_ROSTER[id];
+  const mapped = ROSTER_ID_ALIASES[id] ?? id;
+  const hit = GENERAL_ROSTER[id] ?? GENERAL_ROSTER[mapped];
   if (hit) return hit;
   return def(
     fallbackName,

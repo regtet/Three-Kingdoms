@@ -20,7 +20,9 @@ import type { BattleResult, City, GameState, General } from '../core/models/type
 import { findCity } from '../core/utils/helpers';
 import { getCityStateView } from '../core/utils/cityState';
 import { getFactionGoldTotal, getFactionFoodTotal } from '../core/systems/diplomacy';
-import { COL, CMD_CATEGORIES, L, mapScenarioCoord, CAT_COL } from './OfficialLayout';
+import { isGeneralOnEnvoy } from '../core/systems/envoy';
+import { isGeneralTransporting } from '../core/systems/transport';
+import { COL, CMD_CATEGORIES, L, mapScenarioCoord, CAT_COL, categoryUsesGeneralPicker } from './OfficialLayout';
 import { audioManager } from './AudioManager';
 import { MAX_SAVE_SLOTS } from '../core/systems/save';
 import {
@@ -60,7 +62,6 @@ import { ScreenNavigator, type GameScreen } from './ScreenNavigator';
 import { onGameStateChange } from '../core/event/GameEventBus';
 import {
   buildCategoryButtons as buildMapCategoryButtons,
-  categoryUsesGeneralPicker,
   type MapSubPanelHost,
 } from './MapSubPanelCommands';
 import {
@@ -73,6 +74,19 @@ import {
   launchAttack as launchAttackFlow,
   type BattleFlowHost,
 } from './BattleFlowCommands';
+import {
+  openDipPanel as openDipPanelCmd,
+  openIntelPanel as openIntelPanelCmd,
+  showIntelForCity as showIntelForCityCmd,
+  type MapReportHost,
+} from './MapReportCommands';
+import {
+  doEndTurn as doEndTurnCmd,
+  onEndTurn as onEndTurnCmd,
+  showConfirm as showConfirmCmd,
+  showEndScreen as showEndScreenCmd,
+  type EndTurnHost,
+} from './EndTurnCommands';
 import {
   buildCityStatusPanel,
   buildGeneralInfoContent,
@@ -102,7 +116,7 @@ const { ccclass } = _decorator;
 
 const TUTORIAL_KEY = 'tk_tutorial_seen';
 /** 改 UI 后看主菜单副标题是否为此版本，否则说明 Cocos 未加载最新脚本 */
-const UI_BUILD_TAG = 'UI-v1.9.15';
+const UI_BUILD_TAG = 'UI-v1.9.17';
 
 type Screen = GameScreen;
 @ccclass('GameRoot')
@@ -217,6 +231,7 @@ export class GameRoot extends Component {
   private customTransportGold = 100;
   private customTransportFood = 100;
   private customTransportTroops = 200;
+  private stratagemEnemyPage = 0;
   private logScrollOffset = 0;
   private logFullScrollOffset = 0;
   private readonly LOG_BAR_LINES = 1;
@@ -1318,21 +1333,21 @@ export class GameRoot extends Component {
     this.panelBg(this.intelPanel, 'Bg', L.W, L.H, 0, { r: 0, g: 0, b: 0, a: 200 }, { r: 0, g: 0, b: 0, a: 0 });
     const frame = new Node('IntelFrame');
     this.intelPanel.addChild(frame);
-    frame.setPosition(0, 40, 0);
-    frame.addComponent(UITransform).setContentSize(660, 900);
-    drawModalFrame(frame.addComponent(Graphics), 660, 900);
-    this.label(this.intelPanel, 'IntelTitle', '情  报', 28, new Vec3(0, 460, 0)).color = this.c(COL.textGold);
+    frame.setPosition(0, L.INTEL_FRAME_Y, 0);
+    frame.addComponent(UITransform).setContentSize(L.INTEL_FRAME_W, L.INTEL_FRAME_H);
+    drawModalFrame(frame.addComponent(Graphics), L.INTEL_FRAME_W, L.INTEL_FRAME_H);
+    this.label(this.intelPanel, 'IntelTitle', '情  报', 28, new Vec3(0, L.INTEL_TITLE_Y, 0)).color = this.c(COL.textGold);
     this.intelCityPanel = new Node('IntelCityPanel');
     this.intelPanel.addChild(this.intelCityPanel);
-    this.intelCityPanel.setPosition(0, 200, 0);
-    this.label(this.intelPanel, 'IntelExtra', '', 14, new Vec3(0, -120, 0), 620, true).node.name = 'IntelExtra';
-    this.btn(this.intelPanel, 'CloseIntel', '返回', new Vec3(-140, -420, 0), () => {
+    this.intelCityPanel.setPosition(0, L.INTEL_CITY_Y, 0);
+    this.label(this.intelPanel, 'IntelExtra', '', 14, new Vec3(0, L.INTEL_EXTRA_Y, 0), 620, true).node.name = 'IntelExtra';
+    this.btn(this.intelPanel, 'CloseIntel', '返回', new Vec3(-140, L.INTEL_BTN_Y, 0), () => {
       this.uiManager.closeModal(MODAL_INTEL);
     }, 100, 44);
-    this.btn(this.intelPanel, 'IntelCancel', '取消', new Vec3(0, -420, 0), () => {
+    this.btn(this.intelPanel, 'IntelCancel', '取消', new Vec3(0, L.INTEL_BTN_Y, 0), () => {
       this.uiManager.closeModal(MODAL_INTEL);
     }, 100, 44);
-    this.btn(this.intelPanel, 'IntelDip', '外交', new Vec3(140, -420, 0), () => {
+    this.btn(this.intelPanel, 'IntelDip', '外交', new Vec3(140, L.INTEL_BTN_Y, 0), () => {
       this.uiManager.closeModal(MODAL_INTEL);
       this.openDipPanel();
     }, 120, 44);
@@ -1347,26 +1362,11 @@ export class GameRoot extends Component {
   }
 
   private openIntelPanel() {
-    if (!this.selectedCityId) {
-      this.toast('请先选择城池');
-      return;
-    }
-    this.showIntelForCity(this.selectedCityId);
+    openIntelPanelCmd(this.asReportHost());
   }
 
-  /** @deprecated 使用 openSideIntel */
-
   private showIntelForCity(cityId: string) {
-    const state = gameEngine.state;
-    if (!state) return;
-    this.intelCityPanel.destroyAllChildren();
-    const inner = buildCityStatusPanel(this.intelCityPanel, 0);
-    inner.setPosition(0, 0, 0);
-    refreshCityStatusPanel(inner, state, cityId);
-    const view = gameEngine.getCityState(cityId);
-    const extra = view.split('--- 邻接 ---')[1] ?? '';
-    this.setLabelText(this.intelPanel, 'IntelExtra', extra ? `--- 邻接 ---${extra}` : '');
-    this.uiManager.openModal(MODAL_INTEL, this.intelPanel);
+    showIntelForCityCmd(this.asReportHost(), cityId);
   }
 
   private buildDipPanel() {
@@ -1374,19 +1374,18 @@ export class GameRoot extends Component {
     this.panelBg(this.dipPanel, 'Bg', L.W, L.H, 0, { r: 0, g: 0, b: 0, a: 200 }, { r: 0, g: 0, b: 0, a: 0 });
     const frame = new Node('DipFrame');
     this.dipPanel.addChild(frame);
-    frame.setPosition(0, 80, 0);
-    frame.addComponent(UITransform).setContentSize(660, 720);
-    drawModalFrame(frame.addComponent(Graphics), 660, 720);
-    this.label(this.dipPanel, 'DipTitle', '外  交  状  况', 28, new Vec3(0, 380, 0)).color = this.c(COL.textGold);
-    this.label(this.dipPanel, 'DipBody', '', 16, new Vec3(0, 60, 0), 620, true).node.name = 'DipBody';
-    this.btn(this.dipPanel, 'CloseDip', '关闭', new Vec3(0, -340, 0), () => {
+    frame.setPosition(0, L.DIP_FRAME_Y, 0);
+    frame.addComponent(UITransform).setContentSize(L.DIP_FRAME_W, L.DIP_FRAME_H);
+    drawModalFrame(frame.addComponent(Graphics), L.DIP_FRAME_W, L.DIP_FRAME_H);
+    this.label(this.dipPanel, 'DipTitle', '外  交  状  况', 28, new Vec3(0, L.DIP_TITLE_Y, 0)).color = this.c(COL.textGold);
+    this.label(this.dipPanel, 'DipBody', '', 16, new Vec3(0, L.DIP_BODY_Y, 0), 620, true).node.name = 'DipBody';
+    this.btn(this.dipPanel, 'CloseDip', '关闭', new Vec3(0, L.DIP_BTN_Y, 0), () => {
       this.uiManager.closeModal(MODAL_DIP);
     }, 160, 44);
   }
 
   private openDipPanel() {
-    this.setLabelText(this.dipPanel, 'DipBody', gameEngine.getDiplomacyReport());
-    this.uiManager.openModal(MODAL_DIP, this.dipPanel);
+    openDipPanelCmd(this.asReportHost());
   }
 
   private buildConfirmPanel() {
@@ -1394,16 +1393,16 @@ export class GameRoot extends Component {
     this.panelBg(this.confirmPanel, 'Bg', L.W, L.H, 0, { r: 0, g: 0, b: 0, a: 180 }, { r: 0, g: 0, b: 0, a: 0 });
     const box = new Node('ConfirmBox');
     this.confirmPanel.addChild(box);
-    box.setPosition(0, 40, 0);
-    box.addComponent(UITransform).setContentSize(480, 220);
-    drawModalFrame(box.addComponent(Graphics), 480, 220);
-    this.label(this.confirmPanel, 'ConfirmMsg', '', 20, new Vec3(0, 80, 0), 440).node.name = 'ConfirmMsg';
-    this.btn(this.confirmPanel, 'ConfirmYes', '确认', new Vec3(-90, -20, 0), () => {
+    box.setPosition(0, L.CONFIRM_BOX_Y, 0);
+    box.addComponent(UITransform).setContentSize(L.CONFIRM_BOX_W, L.CONFIRM_BOX_H);
+    drawModalFrame(box.addComponent(Graphics), L.CONFIRM_BOX_W, L.CONFIRM_BOX_H);
+    this.label(this.confirmPanel, 'ConfirmMsg', '', 20, new Vec3(0, L.CONFIRM_MSG_Y, 0), 440).node.name = 'ConfirmMsg';
+    this.btn(this.confirmPanel, 'ConfirmYes', '确认', new Vec3(-90, L.CONFIRM_BTN_Y, 0), () => {
       this.uiManager.closeModal(MODAL_CONFIRM);
       this.confirmCallback?.();
       this.confirmCallback = null;
     }, 120, 44, true);
-    this.btn(this.confirmPanel, 'ConfirmNo', '取消', new Vec3(90, -20, 0), () => {
+    this.btn(this.confirmPanel, 'ConfirmNo', '取消', new Vec3(90, L.CONFIRM_BTN_Y, 0), () => {
       this.uiManager.closeModal(MODAL_CONFIRM);
       this.confirmCallback = null;
     }, 120, 44);
@@ -1412,9 +1411,7 @@ export class GameRoot extends Component {
   private confirmCallback: (() => void) | null = null;
 
   private showConfirm(msg: string, onYes: () => void) {
-    this.setLabelText(this.confirmPanel, 'ConfirmMsg', msg);
-    this.confirmCallback = onYes;
-    this.uiManager.openModal(MODAL_CONFIRM, this.confirmPanel);
+    showConfirmCmd(this.asEndTurnHost(), msg, onYes);
   }
 
   private buildMonthBanner() {
@@ -1802,6 +1799,7 @@ export class GameRoot extends Component {
         this.subTitle.string = `${city.name} · ${cat}`;
         this.subGeneralId = null;
         this.genPickerPage = 0;
+        this.stratagemEnemyPage = 0;
         this.clearSubBtns();
         const usesPicker = categoryUsesGeneralPicker(cat);
         this.subInfo.string = usesPicker
@@ -1835,9 +1833,14 @@ export class GameRoot extends Component {
   }
 
   private genStatus(g: General): string {
+    if (gameEngine.state) {
+      if (isGeneralOnEnvoy(gameEngine.state, g.id)) return '使';
+      if (isGeneralTransporting(gameEngine.state, g.id)) return '运';
+    }
     if (g.actionUsed) return '动';
     if (g.status === 'injured') return '伤';
     if (g.status === 'governor') return '守';
+    if (g.status === 'marching') return '行';
     return '';
   }
 
@@ -1851,6 +1854,14 @@ export class GameRoot extends Component {
 
   private asBattleHost(): BattleFlowHost {
     return this as unknown as BattleFlowHost;
+  }
+
+  private asReportHost(): MapReportHost {
+    return this as unknown as MapReportHost;
+  }
+
+  private asEndTurnHost(): EndTurnHost {
+    return this as unknown as EndTurnHost;
   }
 
   private buildCategoryButtons(cat: CmdCategory, city: City) {
@@ -1900,61 +1911,15 @@ export class GameRoot extends Component {
   private battleResult: BattleResult | null = null;
 
   private onEndTurn() {
-    const summary = gameEngine.getTurnEndSummary();
-    const msg = summary
-      ? `${summary}\n\n结束本回合？\n电脑将行动并进行月结算`
-      : '结束本回合？\n电脑将行动并进行月结算';
-    if (this.gameSettings.confirmEndTurn) {
-      this.showConfirm(msg, () => this.doEndTurn());
-    } else {
-      this.doEndTurn();
-    }
+    onEndTurnCmd(this.asEndTurnHost());
   }
 
   private doEndTurn() {
-    this.closeSubPanel();
-    this.selectedCityId = null;
-    audioManager.playTurnEnd();
-    const delay = this.gameSettings.skipAiOverlay ? 0.05 : 0.75;
-    if (!this.gameSettings.skipAiOverlay) this.turnOverlay.active = true;
-    this.scheduleOnce(() => {
-      const before = gameEngine.state;
-      const r = gameEngine.endTurn();
-      this.turnOverlay.active = false;
-      this.toast(r.message);
-      const after = gameEngine.state;
-      if (before && after && (before.year !== after.year || before.month !== after.month)) {
-        this.showMonthBanner(`${after.year}年 ${after.month}月`);
-      }
-      this.refreshMap();
-      if (gameEngine.state?.phase === 'ended') this.showEndScreen();
-    }, delay);
+    doEndTurnCmd(this.asEndTurnHost());
   }
 
   private showEndScreen() {
-    const state = gameEngine.state;
-    if (!state) return;
-    const won = state.winnerFactionId === state.playerFactionId;
-    const summary = gameEngine.getTurnEndSummary();
-    const titleLb = this.getLabel(this.endLayer, 'EndTitle');
-    if (titleLb) {
-      titleLb.string = won ? '天下统一！' : '势力覆灭';
-      titleLb.color = won ? this.c(COL.textGold) : this.c({ r: 255, g: 130, b: 100, a: 255 });
-    }
-    this.setLabelText(
-      this.endLayer,
-      'EndMsg',
-      won
-        ? `历经 ${state.turn} 回合，群雄尽伏\n${summary}`
-        : `第 ${state.turn} 回合，国祚已尽\n${summary}`,
-    );
-    if (titleLb) {
-      titleLb.node.setScale(0.5, 0.5, 1);
-      tween(titleLb.node)
-        .to(0.45, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
-        .start();
-    }
-    this.showScreen('end');
+    showEndScreenCmd(this.asEndTurnHost());
   }
 
   private toast(msg: string) {

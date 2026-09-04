@@ -2,6 +2,7 @@ import { Color, Label, Node, UITransform, Vec3 } from 'cc';
 import { gameEngine } from '../core/game/GameEngine';
 import type { City, General } from '../core/models/types';
 import { findCity, getCityGenerals } from '../core/utils/helpers';
+import { canUseAmbush } from '../core/systems/stratagem';
 import { COL, L } from './OfficialLayout';
 import { createPortraitDisplay } from './GeneralPortrait';
 import { MODAL_DEPLOY, UIManager } from './UIManager';
@@ -141,6 +142,18 @@ export function refreshDeployPanel(host: DeployPanelHost, from: City, gens: Gene
   });
 
   host.btn(host.deployPanel, 'Ambush_toggle', host.deployUseAmbush ? '伏兵:开' : '伏兵:关', new Vec3(cx - 70, L.DEPLOY_OPT_Y, 0), () => {
+    if (!host.deployUseAmbush) {
+      const gid = host.deployGeneralId;
+      if (!gid) {
+        host.toast('请先选择主将');
+        return;
+      }
+      const check = canUseAmbush(state, from.id, gid);
+      if (!check.success) {
+        host.toast(check.message);
+        return;
+      }
+    }
     host.deployUseAmbush = !host.deployUseAmbush;
     refreshDeployPanel(host, from, gens);
   }, 112, 34, host.deployUseAmbush);

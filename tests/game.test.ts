@@ -3,7 +3,7 @@ import { createNewGame, findCity } from '../assets/scripts/core/utils/helpers';
 import { SCENARIO_001 } from '../assets/scripts/core/data/scenario_001';
 import { developCity, farmCity } from '../assets/scripts/core/systems/domestic';
 import { recruitTroops } from '../assets/scripts/core/systems/recruit';
-import { canAttack, estimateBattle } from '../assets/scripts/core/systems/battle';
+import { canAttack, estimateBattle, resolveBattle } from '../assets/scripts/core/systems/battle';
 import { monthlySettlement, calcGoldIncome, calcTroopUpkeep } from '../assets/scripts/core/systems/income';
 import { proposeTruce, getRelation } from '../assets/scripts/core/systems/diplomacy';
 import { useFireAttack, useSowDiscord, useDisrupt, useFakeReport, useInspire } from '../assets/scripts/core/systems/stratagem';
@@ -83,7 +83,7 @@ function resetGeneralAction(s: GameState, generalId: string): void {
 }
 
 describe('battle and diplomacy', () => {
-  it('cannot attack truce faction', () => {
+  it('attacking truce faction is allowed and breaks the pact', () => {
     const s = newState('wei');
     proposeTruce(s, 'wei', 'wu');
     const check = canAttack(s, {
@@ -92,8 +92,14 @@ describe('battle and diplomacy', () => {
       fromCityId: 'xuchang',
       targetCityId: 'shouchun',
     });
-    expect(check.ok).toBe(false);
-    expect(check.reason).toContain('同盟或停战');
+    expect(check.ok).toBe(true);
+    resolveBattle(s, {
+      attackerGeneralId: 'g_xuchu',
+      attackerTroops: 1000,
+      fromCityId: 'xuchang',
+      targetCityId: 'shouchun',
+    });
+    expect(getRelation(s, 'wei', 'wu')).toBe('hostile');
   });
 
   it('fire attack can reduce enemy troops', () => {

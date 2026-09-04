@@ -95,6 +95,25 @@ export const L = {
   BATTLE_FRAME_H: 900,
   BATTLE_REPORT_W: 580,
 
+  INTEL_FRAME_Y: 40,
+  INTEL_FRAME_W: 660,
+  INTEL_FRAME_H: 900,
+  INTEL_TITLE_Y: 460,
+  INTEL_CITY_Y: 200,
+  INTEL_EXTRA_Y: -120,
+  INTEL_BTN_Y: -420,
+  DIP_FRAME_Y: 80,
+  DIP_FRAME_W: 660,
+  DIP_FRAME_H: 720,
+  DIP_TITLE_Y: 380,
+  DIP_BODY_Y: 60,
+  DIP_BTN_Y: -340,
+  CONFIRM_BOX_Y: 40,
+  CONFIRM_BOX_W: 480,
+  CONFIRM_BOX_H: 220,
+  CONFIRM_MSG_Y: 80,
+  CONFIRM_BTN_Y: -20,
+
   MODAL_TITLE_Y: 380,
   MODAL_BODY_Y: 80,
   MODAL_BTN_Y: -360,
@@ -287,6 +306,11 @@ export const CAT_COL: Record<(typeof CMD_CATEGORIES)[number], { r: number; g: nu
 
 export const CMD_CATEGORIES = ['内政', '军事', '人才', '计谋', '外交'] as const;
 export type CmdCategory = (typeof CMD_CATEGORIES)[number];
+
+/** 五大类命令是否需要先选执行武将 */
+export function categoryUsesGeneralPicker(cat: CmdCategory): boolean {
+  return cat === '人才' || cat === '计谋' || cat === '内政' || cat === '军事' || cat === '外交';
+}
 
 export function mapScenarioCoord(x: number, y: number): { x: number; y: number } {
   const minX = 120;

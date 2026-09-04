@@ -1,5 +1,5 @@
 import type { BattleInput, BattleResult, GameState, General } from '../models/types';
-import { canAttackFaction, breakAllianceOnAttack } from './diplomacy';
+import { breakAllianceOnAttack, getRelation } from './diplomacy';
 import { applyAmbush } from './stratagem';
 import { tryBattleSleeperDefection } from './strategyEffects';
 import { FORMULAS } from '../data/formulas';
@@ -73,10 +73,13 @@ export function canAttack(state: GameState, input: BattleInput): { ok: boolean; 
   if (to.factionId === state.playerFactionId) {
     return { ok: false, reason: '不能攻击己方城池' };
   }
-  if (!canAttackFaction(state, from.factionId, to.factionId)) {
-    return { ok: false, reason: '与该势力处于同盟或停战，无法攻击' };
+  const rel = getRelation(state, from.factionId, to.factionId);
+  if (rel === 'neutral') {
+    return { ok: false, reason: '请先宣战' };
   }
-  breakAllianceOnAttack(state, from.factionId, to.factionId);
+  if (rel !== 'hostile' && rel !== 'allied' && rel !== 'truce') {
+    return { ok: false, reason: '与该势力无法交战' };
+  }
   if (!areNeighbors(state, input.fromCityId, input.targetCityId)) {
     return { ok: false, reason: '只能攻击相邻城池' };
   }
@@ -137,6 +140,7 @@ export function estimateBattle(
 export function resolveBattle(state: GameState, input: BattleInput): BattleResult {
   const from = findCity(state, input.fromCityId);
   const to = findCity(state, input.targetCityId);
+  breakAllianceOnAttack(state, from.factionId, to.factionId);
   const attacker = findGeneral(state, input.attackerGeneralId);
   const defender = getDefendingGeneral(state, input.targetCityId);
   const log: string[] = [];

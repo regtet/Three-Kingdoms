@@ -230,7 +230,7 @@ export function applyAmbush(
   targetCityId: string,
 ): { damage: number; log: string } | null {
   const check = canUseAmbush(state, cityId, generalId);
-  if (!check.success) return null;
+  if (!check.success) return { damage: 0, log: check.message };
 
   const f = FORMULAS.stratagem.ambush;
   const city = findCity(state, cityId);
@@ -241,8 +241,9 @@ export function applyAmbush(
   city.food -= f.foodCost;
 
   if (!rollStratagemSuccess(state, generalId, targetCityId)) {
-    addLog(state, `${general.name} 伏兵 ${target.name} 失败`, 'stratagem');
-    return null;
+    const log = `${general.name} 伏兵 ${target.name} 失败`;
+    addLog(state, log, 'stratagem');
+    return { damage: 0, log };
   }
 
   const damage = Math.floor(target.troops * f.troopDamageRatio);
