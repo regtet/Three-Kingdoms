@@ -1,6 +1,9 @@
 import type { City, GameState, General } from '../models/types';
 import { FORMULAS } from '../data/formulas';
 import { addLog, clampStat, findCity, findGeneral, resetDomesticFlags } from '../utils/helpers';
+import { resolveTransportMissions, isGeneralTransporting } from './transport';
+import { resolveStrategyEffects } from './strategyEffects';
+import { resolveEnvoyMissions, isGeneralOnEnvoy } from './envoy';
 import { processDefections } from './personnel';
 
 /** 太守政治加成 */
@@ -107,9 +110,13 @@ export function monthlySettlement(state: GameState): void {
     }
   }
 
+  resolveTransportMissions(state);
+  resolveStrategyEffects(state);
+  resolveEnvoyMissions(state);
   resetDomesticFlags(state);
   for (const g of state.generals) {
     if (g.status === 'injured') g.status = 'idle';
-    if (g.status === 'marching') g.status = 'idle';
+    const onMission = isGeneralTransporting(state, g.id) || isGeneralOnEnvoy(state, g.id);
+    if (g.status === 'marching' && !onMission) g.status = 'idle';
   }
 }

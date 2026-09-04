@@ -1,10 +1,12 @@
 import type { GameState } from '../models/types';
 import { FORMULAS } from '../data/formulas';
 import { addLog, findCity, getCityGenerals, getFactionCities } from '../utils/helpers';
+import { getActableGeneralsInCity } from './actionGuard';
+import { executeTransport } from './transport';
 import { aiDevelopCity, aiFarmCity } from './domestic';
 import { aiRecruit } from './recruit';
 import { aiExecuteAttack } from './battle';
-import { runAiDiplomacy } from './diplomacy';
+import { runAiDiplomacy } from './aiDiplomacy';
 import type { BattleInput } from '../models/types';
 import { canAttackFaction } from './diplomacy';
 import { runAiStratagem, runAiGovern, pickAiSecondaryGeneral } from './aiStratagem';
@@ -18,7 +20,7 @@ function pickAttackTargets(state: GameState, factionId: string): BattleInput[] {
   for (const city of cities) {
     if (city.troops < FORMULAS.ai.minTroopsToAttack) continue;
     const generals = getCityGenerals(state, city.id).filter(
-      (g) => g.status !== 'marching' && g.status !== 'injured',
+      (g) => g.status !== 'marching' && g.status !== 'injured' && !g.actionUsed,
     );
     if (generals.length === 0) continue;
     const general = generals.reduce((a, b) => (a.leadership > b.leadership ? a : b));
@@ -58,11 +60,17 @@ function aiTransportResources(state: GameState, factionId: string): void {
   const gold = Math.min(80, Math.floor(from.gold * 0.2));
   const food = Math.min(80, Math.floor(from.food * 0.2));
   if (gold + food < 20) return;
-  from.gold -= gold;
-  from.food -= food;
-  to.gold += gold;
-  to.food += food;
-  addLog(state, `[AI] ${from.name}→${to.name} 运输 金${gold} 粮${food}`, 'ai');
+  const actable = getActableGeneralsInCity(state, from.id, factionId);
+  const general = actable.sort((a, b) => b.leadership - a.leadership)[0];
+  if (!general) return;
+  executeTransport(state, {
+    fromCityId: from.id,
+    toCityId: to.id,
+    generalId: general.id,
+    gold,
+    food,
+    troops: 0,
+  }, factionId);
 }
 
 export function runAiTurn(state: GameState): void {

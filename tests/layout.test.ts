@@ -43,6 +43,11 @@ describe('layout constants', () => {
     expect(layoutGapAbove(listBottom, action)).toBeGreaterThanOrEqual(MIN_GAP);
     expect(layoutGapAbove(action, extra)).toBeGreaterThanOrEqual(MIN_GAP);
     expect(layoutGapAbove(extra, footer)).toBeGreaterThanOrEqual(MIN_GAP);
+
+    const cycle = layoutBand(L.SUB_TRANSPORT_CYCLE_Y, 32);
+    const tlist = layoutBand(L.SUB_TRANSPORT_LIST_Y, 40);
+    expect(layoutGapAbove(cycle, tlist)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(tlist, footer)).toBeGreaterThanOrEqual(MIN_GAP);
   });
 
   it('sub panel title and footer stay inside panel bounds', () => {
@@ -115,6 +120,60 @@ describe('layout constants', () => {
     expect(layoutGapAbove(count, back)).toBeGreaterThanOrEqual(MIN_GAP);
     expect(L.LOBBY_GALLERY_TABLE_W).toBeLessThanOrEqual(L.W);
     expect(L.LOBBY_GALLERY_SCROLL_TOP - L.LOBBY_GALLERY_SCROLL_BOTTOM).toBe(L.LOBBY_GALLERY_SCROLL_H);
+  });
+
+  it('deploy panel control bands stay ordered', () => {
+    const secLabel = layoutBand(L.DEPLOY_SEC_LABEL_Y, 16);
+    const gen = layoutBand(L.DEPLOY_GEN_Y, 36);
+    const sec = layoutBand(L.DEPLOY_SEC_Y, 30);
+    const ratio = layoutBand(L.DEPLOY_RATIO_Y, 34);
+    const opt = layoutBand(L.DEPLOY_OPT_Y, 34);
+    const info = layoutBand(L.DEPLOY_INFO_Y, 48);
+    const target = layoutBand(L.DEPLOY_TARGET_Y, 40);
+    const cancel = layoutBand(L.MODAL_BTN_Y, 44);
+    expect(layoutGapAbove(secLabel, gen)).toBeGreaterThanOrEqual(0);
+    expect(layoutGapAbove(gen, sec)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(sec, ratio)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(ratio, opt)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(opt, info)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(info, target)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(target, cancel)).toBeGreaterThanOrEqual(MIN_GAP);
+  });
+
+  it('lobby scenario list fits three entries above back', () => {
+    const item0 = layoutBand(L.LOBBY_LIST_START_Y, L.MENU_ITEM_H);
+    const item2 = layoutBand(L.LOBBY_LIST_START_Y - 2 * (L.LOBBY_LIST_GAP + 12), L.MENU_ITEM_H);
+    const back = layoutBand(L.LOBBY_BACK_Y, L.MENU_ITEM_H);
+    expect(layoutGapAbove(item0, item2)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(item2, back)).toBeGreaterThanOrEqual(MIN_GAP);
+  });
+
+  it('battle report frame fits modal chrome', () => {
+    const frame = layoutBand(L.BATTLE_FRAME_Y, L.BATTLE_FRAME_H);
+    const title = layoutBand(L.MODAL_TITLE_Y, 36);
+    const body = layoutBand(L.MODAL_BODY_Y, 200);
+    const btn = layoutBand(L.MODAL_BTN_Y, 44);
+    expect(title.top).toBeLessThanOrEqual(frame.top - 8);
+    expect(layoutGapAbove(title, body)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(body, btn)).toBeGreaterThanOrEqual(MIN_GAP);
+    // 确定按钮与出兵弹窗共用 MODAL_BTN_Y，中心落在框内即可
+    expect(btn.center).toBeGreaterThanOrEqual(frame.bottom);
+    expect(L.BATTLE_REPORT_W).toBeLessThanOrEqual(L.BATTLE_FRAME_W);
+  });
+
+  it('tactical hex panel zones do not overlap', () => {
+    const title = layoutBand(L.TACT_TITLE_Y, 36);
+    const info = layoutBand(L.TACT_INFO_Y, 24);
+    const grid = layoutBand(L.TACT_GRID_Y, L.TACT_HEX_SIZE * 7);
+    const log = layoutBand(L.TACT_LOG_Y, L.TACT_LOG_H);
+    const cmd = layoutBand(L.TACT_CMD_Y, L.TACT_CMD_H);
+    const frame = layoutBand(L.TACT_FRAME_Y, L.TACT_FRAME_H);
+    expect(layoutGapAbove(title, info)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(info, grid)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(grid, log)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(layoutGapAbove(log, cmd)).toBeGreaterThanOrEqual(MIN_GAP);
+    expect(title.top).toBeLessThanOrEqual(frame.top - 8);
+    expect(cmd.bottom).toBeGreaterThanOrEqual(frame.bottom + 8);
   });
 
   it('general editor list fits on screen', () => {

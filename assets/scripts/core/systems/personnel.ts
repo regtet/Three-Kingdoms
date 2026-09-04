@@ -1,6 +1,8 @@
 import type { ActionResult, GameState, General, TransportInput } from '../models/types';
 import { FORMULAS } from '../data/formulas';
-import { addLog, areNeighbors, findCity, getCityGenerals } from '../utils/helpers';
+import { addLog, areNeighbors, findCity, findGeneral, getCityGenerals } from '../utils/helpers';
+import { canGeneralAct, markGeneralActed, getActableGeneralsInCity } from './actionGuard';
+import { executeTransport } from './transport';
 
 /** 武将移动（人才） */
 export function moveGeneral(state: GameState, generalId: string, toCityId: string): ActionResult {
@@ -9,6 +11,8 @@ export function moveGeneral(state: GameState, generalId: string, toCityId: strin
   if (!general) return { success: false, message: '武将不存在' };
   if (general.factionId !== state.playerFactionId) return { success: false, message: '不能调动敌将' };
   if (general.status === 'marching') return { success: false, message: '武将在外，无法移动' };
+  const act = canGeneralAct(state, generalId);
+  if (!act.ok) return { success: false, message: act.message };
 
   const to = findCity(state, toCityId);
   if (to.factionId !== state.playerFactionId) return { success: false, message: '只能移动到己方城池' };
@@ -19,6 +23,7 @@ export function moveGeneral(state: GameState, generalId: string, toCityId: strin
 
   general.cityId = toCityId;
   if (!to.generalIds.includes(generalId)) to.generalIds.push(generalId);
+  markGeneralActed(general);
 
   addLog(state, `${general.name} 移至 ${to.name}`, 'personnel');
   return { success: true, message: `${general.name} 已至 ${to.name}` };
@@ -29,6 +34,8 @@ export function rewardGeneral(state: GameState, generalId: string, cityId: strin
   if (state.phase !== 'player') return { success: false, message: '当前不是玩家回合' };
   const general = state.generals.find((g) => g.id === generalId);
   if (!general || general.factionId !== state.playerFactionId) return { success: false, message: '无效武将' };
+  const act = canGeneralAct(state, generalId);
+  if (!act.ok) return { success: false, message: act.message };
 
   const city = findCity(state, cityId);
   const cost = FORMULAS.loyalty.rewardGoldCost;
@@ -37,6 +44,7 @@ export function rewardGeneral(state: GameState, generalId: string, cityId: strin
 
   city.gold -= cost;
   general.loyalty = Math.min(100, general.loyalty + gain);
+  markGeneralActed(general);
   addLog(state, `赏赐 ${general.name}，忠诚 ${general.loyalty}`, 'personnel');
   return { success: true, message: `${general.name} 忠诚 ${general.loyalty}` };
 }
@@ -48,37 +56,19 @@ export function appointGovernor(state: GameState, cityId: string, generalId: str
   if (city.factionId !== state.playerFactionId) return { success: false, message: '只能任命己方城池' };
   const general = state.generals.find((g) => g.id === generalId);
   if (!general || general.cityId !== cityId) return { success: false, message: '武将须在本城' };
+  const act = canGeneralAct(state, generalId);
+  if (!act.ok) return { success: false, message: act.message };
 
   city.governorId = generalId;
   general.status = 'governor';
+  markGeneralActed(general);
   addLog(state, `${general.name} 出任 ${city.name} 太守`, 'personnel');
   return { success: true, message: `${general.name} 为 ${city.name} 太守` };
 }
 
-/** 运输（军事）：相邻城之间运送金/粮/兵 */
+/** 运输（军事）：相邻城之间运送金/粮/兵，下月送达 */
 export function transport(state: GameState, input: TransportInput): ActionResult {
-  if (state.phase !== 'player') return { success: false, message: '当前不是玩家回合' };
-  const from = findCity(state, input.fromCityId);
-  const to = findCity(state, input.toCityId);
-  if (from.factionId !== state.playerFactionId || to.factionId !== state.playerFactionId) {
-    return { success: false, message: '只能在本方城池间运输' };
-  }
-  if (!areNeighbors(state, input.fromCityId, input.toCityId)) {
-    return { success: false, message: '只能运输到相邻城池' };
-  }
-  if (from.gold < input.gold || from.food < input.food || from.troops < input.troops) {
-    return { success: false, message: '出发城资源不足' };
-  }
-
-  from.gold -= input.gold;
-  from.food -= input.food;
-  from.troops -= input.troops;
-  to.gold += input.gold;
-  to.food += input.food;
-  to.troops += input.troops;
-
-  addLog(state, `${from.name}→${to.name} 运输 金${input.gold} 粮${input.food} 兵${input.troops}`, 'military');
-  return { success: true, message: '运输完成' };
+  return executeTransport(state, input);
 }
 
 /** 在野武将池（搜索成功时登用） */
@@ -96,18 +86,21 @@ export function searchTalent(state: GameState, cityId: string): ActionResult {
   const city = findCity(state, cityId);
   if (city.factionId !== state.playerFactionId) return { success: false, message: '只能在本城搜索' };
 
+  const actable = getActableGeneralsInCity(state, cityId);
+  const searcher = actable.sort((a, b) => b.charm - a.charm)[0];
+  if (!searcher) return { success: false, message: '本城无可用武将（均已行动或在外）' };
+
   const f = FORMULAS.search;
   if (city.gold < f.goldCost) return { success: false, message: `金钱不足（需要 ${f.goldCost}）` };
 
-  const searcher = getCityGenerals(state, cityId)
-    .sort((a, b) => b.charm - a.charm)[0];
-  const charm = searcher?.charm ?? 50;
+  const charm = searcher.charm;
   const rate = f.baseSuccessRate + charm * f.charmFactor;
 
   city.gold -= f.goldCost;
+  markGeneralActed(searcher);
 
   if (Math.random() > rate) {
-    addLog(state, `${city.name} 搜索人才未果`, 'personnel');
+    addLog(state, `${searcher.name} 在 ${city.name} 搜索人才未果`, 'personnel');
     return { success: false, message: '搜索未果，消耗金钱' };
   }
 
@@ -125,6 +118,7 @@ export function searchTalent(state: GameState, cityId: string): ActionResult {
     factionId: state.playerFactionId,
     cityId,
     status: 'idle',
+    actionUsed: false,
   };
   state.generals.push(general);
   if (!city.generalIds.includes(general.id)) city.generalIds.push(general.id);
@@ -139,6 +133,10 @@ export function recruitWildGeneral(state: GameState, cityId: string, wildId: str
   const city = findCity(state, cityId);
   if (city.factionId !== state.playerFactionId) return { success: false, message: '只能在本城登用' };
 
+  const actable = getActableGeneralsInCity(state, cityId);
+  const officer = actable.sort((a, b) => b.charm - a.charm)[0];
+  if (!officer) return { success: false, message: '本城无可用武将执行登用' };
+
   const idx = state.wildGenerals.findIndex((w) => w.id === wildId && w.cityId === cityId);
   if (idx < 0) return { success: false, message: '该城无此在野武将' };
 
@@ -152,6 +150,7 @@ export function recruitWildGeneral(state: GameState, cityId: string, wildId: str
   }
 
   city.gold -= cost;
+  markGeneralActed(officer);
   const general: General = {
     id: wild.id,
     name: wild.name,
@@ -164,12 +163,13 @@ export function recruitWildGeneral(state: GameState, cityId: string, wildId: str
     factionId: state.playerFactionId,
     cityId,
     status: 'idle',
+    actionUsed: false,
   };
   state.generals.push(general);
   if (!city.generalIds.includes(general.id)) city.generalIds.push(general.id);
   state.wildGenerals.splice(idx, 1);
 
-  addLog(state, `登用 ${general.name}（${city.name}）`, 'personnel');
+  addLog(state, `${officer.name} 登用 ${general.name}（${city.name}）`, 'personnel');
   return { success: true, message: `登用 ${general.name}（武${general.force} 智${general.intelligence}）` };
 }
 

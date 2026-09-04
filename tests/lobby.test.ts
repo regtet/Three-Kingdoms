@@ -48,9 +48,10 @@ describe('generalCatalog', () => {
 });
 
 describe('scenarioMeta', () => {
-  it('covers both scenarios', () => {
+  it('covers all scenarios', () => {
     expect(getScenarioMeta('scenario_001').detail.length).toBeGreaterThan(10);
     expect(getScenarioMeta('scenario_002').summary).toContain('208');
+    expect(getScenarioMeta('scenario_003').summary).toContain('官渡');
   });
 });
 

@@ -35,6 +35,14 @@ function migrateState(data: GameState): GameState {
   }
   for (const g of data.generals) {
     if (g.age === undefined) g.age = 30 + (g.name.charCodeAt(0) % 25);
+    if (g.actionUsed === undefined) g.actionUsed = false;
+  }
+  if (!data.transportMissions) data.transportMissions = [];
+  if (!data.strategyEffects) data.strategyEffects = [];
+  if (!data.envoyMissions) data.envoyMissions = [];
+  for (const m of data.envoyMissions) {
+    if (!m.path || m.path.length < 2) m.path = [m.fromCityId, m.toCityId];
+    if (m.pathIndex === undefined) m.pathIndex = 0;
   }
   data.saveVersion = SAVE_VERSION;
   return data;
@@ -49,7 +57,9 @@ export function deserializeGame(json: string): GameState | null {
     const data = JSON.parse(json) as GameState;
     if (!data || !data.cities || !data.generals || !data.factions) return null;
     if (data.saveVersion === SAVE_VERSION) return data;
-    if (data.saveVersion === 3 || data.saveVersion === undefined) return migrateState(data);
+    if (data.saveVersion === 8 || data.saveVersion === 7 || data.saveVersion === 6 || data.saveVersion === 5 || data.saveVersion === 4 || data.saveVersion === 3 || data.saveVersion === undefined) {
+      return migrateState(data);
+    }
     return null;
   } catch {
     return null;

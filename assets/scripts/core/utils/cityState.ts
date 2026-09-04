@@ -3,6 +3,8 @@ import { calcFoodIncome, calcGoldIncome, calcTroopUpkeep } from '../systems/inco
 import { getRelation, getFactionDisplayName } from '../systems/diplomacy';
 import { formatRelationLabel } from '../systems/diplomacyReport';
 import { findCity, findGeneral, getCityGenerals, getMaxTroops } from './helpers';
+import { getActableGeneralsInCity } from '../systems/actionGuard';
+import { getActiveEffectsOnGeneral } from '../systems/strategyEffects';
 
 const DISASTER_NAMES: Record<string, string> = {
   none: '无',
@@ -29,6 +31,14 @@ export function getCityStateView(state: GameState, cityId: string): CityStateVie
     };
   });
 
+  const actable = getActableGeneralsInCity(state, cityId);
+  const inbound = state.transportMissions.filter(
+    (m) => m.toCityId === cityId && m.status === 'in_transit',
+  ).length;
+  const outbound = state.transportMissions.filter(
+    (m) => m.fromCityId === cityId && m.status === 'in_transit',
+  ).length;
+
   return {
     city,
     factionName,
@@ -38,13 +48,16 @@ export function getCityStateView(state: GameState, cityId: string): CityStateVie
     projectedFoodIncome: calcFoodIncome(city, governor),
     projectedTroopUpkeep: calcTroopUpkeep(city),
     maxTroops: getMaxTroops(city),
-    canDomestic: !city.domesticDone && state.phase === 'player',
+    actableGeneralCount: actable.length,
+    canDomestic: actable.length > 0 && state.phase === 'player',
+    transportInbound: inbound,
+    transportOutbound: outbound,
     neighborSummary,
   };
 }
 
 /** 格式化为官方风格文本（CLI / 简易 UI） */
-export function formatCityStateReport(view: CityStateView): string {
+export function formatCityStateReport(view: CityStateView, state?: import('../models/types').GameState): string {
   const c = view.city;
   const lines = [
     `━━ ${c.name}（${view.factionName}）━━`,
@@ -52,11 +65,17 @@ export function formatCityStateReport(view: CityStateView): string {
     `商业 ${c.commerce} | 农业 ${c.agriculture} | 民忠 ${c.loyalty} | 治安 ${c.order}`,
     `灾难 ${DISASTER_NAMES[c.disaster] ?? c.disaster} | 太守 ${view.governor?.name ?? '无'}`,
     `预计下月收入：金 +${view.projectedGoldIncome} | 粮 +${view.projectedFoodIncome} | 兵饷 -${view.projectedTroopUpkeep}`,
-    `本月内政：${view.canDomestic ? '可执行' : '已完成'}`,
+    `可行动武将：${view.actableGeneralCount}/${view.generals.length}`,
     '--- 武将 ---',
-    ...view.generals.map((g) =>
-      `  ${g.name} 武${g.force} 智${g.intelligence} 统${g.leadership} 忠${g.loyalty} [${g.status}]`,
-    ),
+    ...view.generals.map((g) => {
+      let fxTag = '';
+      if (state) {
+        const fx = getActiveEffectsOnGeneral(state, g.id);
+        const tags = fx.map((e) => (e.type === 'sleeper' ? '寝' : '疑')).join('');
+        if (tags) fxTag = `·计略${tags}`;
+      }
+      return `  ${g.name} 武${g.force} 智${g.intelligence} 统${g.leadership} 忠${g.loyalty} [${g.status}]${g.actionUsed ? '·已行动' : ''}${fxTag}`;
+    }),
     '--- 邻接 ---',
     ...view.neighborSummary.map((n) =>
       `  ${n.name}（${n.factionName}）兵${n.troops} [${formatRelationLabel(n.relation as DiplomaticStatus)}]`,
@@ -68,5 +87,9 @@ export function formatCityStateReport(view: CityStateView): string {
 /** 子面板用精简信息（单行，避免与子按钮重叠） */
 export function formatCityStateBrief(view: CityStateView): string {
   const c = view.city;
-  return `金${c.gold} 粮${c.food} 兵${c.troops}/${view.maxTroops}  商${c.commerce} 农${c.agriculture}  民忠${c.loyalty}  太守 ${view.governor?.name ?? '无'}`;
+  const transport =
+    view.transportInbound + view.transportOutbound > 0
+      ? `  运输↓${view.transportInbound}↑${view.transportOutbound}`
+      : '';
+  return `金${c.gold} 粮${c.food} 兵${c.troops}/${view.maxTroops}  商${c.commerce} 农${c.agriculture}  民忠${c.loyalty}  可动${view.actableGeneralCount}${transport}  太守 ${view.governor?.name ?? '无'}`;
 }

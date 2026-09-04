@@ -1,7 +1,9 @@
 import type { BattleInput, BattleResult, GameState, General } from '../models/types';
 import { canAttackFaction, breakAllianceOnAttack } from './diplomacy';
 import { applyAmbush } from './stratagem';
+import { tryBattleSleeperDefection } from './strategyEffects';
 import { FORMULAS } from '../data/formulas';
+import { canGeneralAct, markGeneralActed } from './actionGuard';
 import {
   addLog,
   areNeighbors,
@@ -87,6 +89,8 @@ export function canAttack(state: GameState, input: BattleInput): { ok: boolean; 
   if (attacker.status === 'injured') {
     return { ok: false, reason: '武将负伤，无法出征' };
   }
+  const act = canGeneralAct(state, input.attackerGeneralId);
+  if (!act.ok) return { ok: false, reason: act.message };
   if (input.attackerTroops <= 0) {
     return { ok: false, reason: '出兵数量须大于 0' };
   }
@@ -97,6 +101,8 @@ export function canAttack(state: GameState, input: BattleInput): { ok: boolean; 
     const sec = findGeneral(state, input.secondaryGeneralId);
     if (sec.cityId !== input.fromCityId) return { ok: false, reason: '副将须在同一城池' };
     if (sec.status === 'injured' || sec.status === 'marching') return { ok: false, reason: '副将无法出征' };
+    const secAct = canGeneralAct(state, input.secondaryGeneralId);
+    if (!secAct.ok) return { ok: false, reason: secAct.message };
   }
   return { ok: true, reason: '' };
 }
@@ -136,6 +142,8 @@ export function resolveBattle(state: GameState, input: BattleInput): BattleResul
   const log: string[] = [];
 
   log.push(`${attacker.name} 率 ${input.attackerTroops} 兵从 ${from.name} 进攻 ${to.name}`);
+  const sleeperLogs = tryBattleSleeperDefection(state, from.factionId, input.targetCityId);
+  sleeperLogs.forEach((line) => log.push(line));
   if (input.secondaryGeneralId) {
     const sec = findGeneral(state, input.secondaryGeneralId);
     log.push(`副将 ${sec.name} 协同作战`);
@@ -288,6 +296,11 @@ export function executeAttack(state: GameState, input: BattleInput): BattleResul
     };
   }
   const result = resolveBattle(state, input);
+  const attacker = findGeneral(state, input.attackerGeneralId);
+  markGeneralActed(attacker);
+  if (input.secondaryGeneralId) {
+    markGeneralActed(findGeneral(state, input.secondaryGeneralId));
+  }
   const to = findCity(state, input.targetCityId);
   addLog(state, result.log.join('；'), 'battle');
   if (result.cityCaptured) {
@@ -308,8 +321,11 @@ export function aiExecuteAttack(state: GameState, input: BattleInput): BattleRes
   if (attacker.cityId !== input.fromCityId || attacker.status === 'marching' || attacker.status === 'injured') {
     return null;
   }
+  if (attacker.actionUsed) return null;
 
   const result = resolveBattle(state, input);
+  markGeneralActed(attacker);
+  if (input.secondaryGeneralId) markGeneralActed(findGeneral(state, input.secondaryGeneralId));
   addLog(state, `[AI] ${result.log.join('；')}`, 'ai');
   return result;
 }

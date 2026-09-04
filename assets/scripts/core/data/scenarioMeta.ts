@@ -18,6 +18,12 @@ export const SCENARIO_META: Record<string, ScenarioMeta> = {
       '赤壁之战前夕，曹军南下，孙刘联盟初成。前线城池对峙，庞德、徐晃、张郃、太史慈等名将尚在野望。',
     recommend: '推荐体验孙权或刘备，感受联盟与火攻前夜。',
   },
+  scenario_003: {
+    summary: '200年 · 官渡对峙',
+    detail:
+      '袁绍据邺城、洛阳，兵多粮足；曹操守许昌，精兵良将。刘备、关羽、张飞尚在野，登用可扭转战局。',
+    recommend: '推荐曹操以少胜多，或袁绍挥兵南下。',
+  },
 };
 
 export function getScenarioMeta(id: string): ScenarioMeta {

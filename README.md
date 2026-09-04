@@ -20,6 +20,7 @@
 |------|------|
 | 三足鼎立 | 200年标准开局，24武将 |
 | 赤壁争锋 | 208年前线对峙，在野名将（庞德、徐晃、张郃、太史慈） |
+| 官渡争锋 | 200年秋曹袁对决，双势力 + 在野刘关张 |
 
 ## 运行
 
@@ -31,7 +32,7 @@ npm run generate:audio      # 生成 WAV 音效
 npm run generate:portraits  # 生成武将立绘 PNG
 ```
 
-Cocos Creator：打开 `Game` 场景 → 预览；主菜单右下角应显示 `UI-v1.9.4`。Logo 使用 `resources/brand/logo2.webp`。
+Cocos Creator：打开 `Game` 场景 → 预览；主菜单右下角应显示 `UI-v1.9.15`。Logo 使用 `resources/brand/logo2.webp`。
 
 启动时会全屏播放开场视频（`resources/video/intro.mp4`，竖屏 cover，可点「跳过」）。
 

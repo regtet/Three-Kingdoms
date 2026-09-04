@@ -2,7 +2,7 @@ import type { GameState } from '../models/types';
 import { FORMULAS } from '../data/formulas';
 import { findCity, getCityGenerals, getFactionCities } from '../utils/helpers';
 import { canAttackFaction } from './diplomacy';
-import { getStratagemGenerals, aiFireAttack, aiDisrupt, aiSowDiscord, aiFakeReport } from './stratagem';
+import { getStratagemGenerals, aiFireAttack, aiDisrupt, aiSowDiscord, aiFakeReport, aiUndermineLoyalty, aiSleeper } from './stratagem';
 import { aiGovernCity } from './domestic';
 
 /** AI 回合：对相邻敌城施计 */
@@ -24,7 +24,11 @@ export function runAiStratagem(state: GameState, factionId: string): void {
     const target = enemies.sort((a, b) => b.troops - a.troops)[0];
     const roll = Math.random();
 
-    if (gen.intelligence >= 60 && roll < 0.35) {
+    if (gen.intelligence >= 68 && roll < 0.2) {
+      aiSleeper(state, factionId, city.id, gen.id, target.id);
+    } else if (gen.intelligence >= 65 && roll < 0.32) {
+      aiUndermineLoyalty(state, factionId, city.id, gen.id, target.id);
+    } else if (gen.intelligence >= 60 && roll < 0.35) {
       aiFireAttack(state, factionId, city.id, gen.id, target.id);
     } else if (gen.intelligence >= 58 && roll < 0.55) {
       aiFakeReport(state, factionId, city.id, gen.id, target.id);

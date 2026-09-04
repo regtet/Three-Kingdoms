@@ -32,12 +32,15 @@ export const FORMULAS: Formulas = {
     ambush: { goldCost: 70, foodCost: 30, minIntelligence: 65, troopDamageRatio: 0.12 },
     fakeReport: { goldCost: 55, minIntelligence: 58, orderLoss: 20 },
     inspire: { goldCost: 40, minIntelligence: 45, loyaltyGain: 8 },
+    undermineLoyalty: { goldCost: 65, minIntelligence: 62, loyaltyLoss: 10, durationMonths: 2 },
+    sleeper: { goldCost: 75, minIntelligence: 68, durationMonths: 3, defectionBaseRate: 0.25 },
   },
   diplomacy: {
     giftGoldCost: 100,
     giftRelationGain: 15,
     allianceMinDuration: 6,
     truceMinDuration: 3,
+    envoyInterceptChance: 0.22,
   },
   ai: {
     developThresholdCommerce: 150,
@@ -46,6 +49,7 @@ export const FORMULAS: Formulas = {
     minTroopsToAttack: 1500,
     stratagemChance: 0.35,
     governChance: 0.4,
+    diplomacyChance: 0.12,
   },
   wildRecruit: { minGold: 120 },
 };

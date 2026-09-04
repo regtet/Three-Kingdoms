@@ -1,6 +1,7 @@
 import type { ActionResult, GameState } from '../models/types';
 import { FORMULAS } from '../data/formulas';
-import { addLog, findCity, getMaxTroops } from '../utils/helpers';
+import { addLog, findCity, findGeneral, getMaxTroops } from '../utils/helpers';
+import { canGeneralAct, markGeneralActed, getActableGeneralsInCity } from './actionGuard';
 
 function recruitEfficiency(city: ReturnType<typeof findCity>): number {
   const f = FORMULAS.recruitEfficiency;
@@ -10,12 +11,16 @@ function recruitEfficiency(city: ReturnType<typeof findCity>): number {
   return 1;
 }
 
-export function recruitTroops(state: GameState, cityId: string, amount: number): ActionResult {
+export function recruitTroops(state: GameState, cityId: string, amount: number, generalId: string): ActionResult {
   if (state.phase !== 'player') return { success: false, message: '当前不是玩家回合' };
   if (amount <= 0) return { success: false, message: '征兵数量须大于 0' };
 
   const city = findCity(state, cityId);
   if (city.factionId !== state.playerFactionId) return { success: false, message: '只能在自己的城池征兵' };
+  const general = findGeneral(state, generalId);
+  if (general.cityId !== cityId) return { success: false, message: '武将须在本城' };
+  const act = canGeneralAct(state, generalId);
+  if (!act.ok) return { success: false, message: act.message };
 
   const eff = recruitEfficiency(city);
   const actual = Math.max(1, Math.floor(amount * eff));
@@ -36,14 +41,18 @@ export function recruitTroops(state: GameState, cityId: string, amount: number):
   city.gold -= goldCost;
   city.food -= foodCost;
   city.troops += actual;
+  markGeneralActed(general);
   const effNote = eff < 1 ? `（效率${Math.floor(eff * 100)}%）` : '';
-  addLog(state, `${city.name} 征兵 ${actual}${effNote}（耗金${goldCost} 粮${foodCost}）`, 'military');
-  return { success: true, message: `征兵 ${actual} 完成${effNote}` };
+  addLog(state, `${general.name} 在 ${city.name} 征兵 ${actual}${effNote}（耗金${goldCost} 粮${foodCost}）`, 'military');
+  return { success: true, message: `${general.name} 征兵 ${actual} 完成${effNote}` };
 }
 
 export function aiRecruit(state: GameState, cityId: string, amount: number): boolean {
   if (amount <= 0) return false;
   const city = findCity(state, cityId);
+  const actable = getActableGeneralsInCity(state, cityId, city.factionId);
+  const general = actable.sort((a, b) => b.leadership - a.leadership)[0];
+  if (!general) return false;
   const eff = recruitEfficiency(city);
   const actual = Math.min(Math.floor(amount * eff), getMaxTroops(city) - city.troops);
   if (actual <= 0) return false;
@@ -53,6 +62,7 @@ export function aiRecruit(state: GameState, cityId: string, amount: number): boo
   city.gold -= goldCost;
   city.food -= foodCost;
   city.troops += actual;
+  markGeneralActed(general);
   return true;
 }
 

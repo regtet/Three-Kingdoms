@@ -10,6 +10,7 @@ import type {
 import { SAVE_VERSION } from '../models/types';
 import { FORMULAS } from '../data/formulas';
 import { applyCustomGeneralsToScenario } from './customGenerals';
+import { resetGeneralActions } from '../systems/actionGuard';
 
 export function deepCloneState(state: GameState): GameState {
   return JSON.parse(JSON.stringify(state)) as GameState;
@@ -110,6 +111,7 @@ export function createNewGame(scenario: ScenarioData, playerFactionId: string): 
     ...g,
     age: g.age ?? 30 + (g.name.charCodeAt(0) % 25),
     status: 'idle' as const,
+    actionUsed: false,
   }));
 
   const cities: City[] = scenario.cities.map((c) => {
@@ -154,6 +156,9 @@ export function createNewGame(scenario: ScenarioData, playerFactionId: string): 
     playerFactionId,
     actionLog: [{ turn: 1, message: `游戏开始：${scenario.name}`, type: 'info' }],
     wildGenerals: (scenario.wildGenerals ?? []).map((w) => ({ ...w })),
+    transportMissions: [],
+    strategyEffects: [],
+    envoyMissions: [],
   };
 }
 
@@ -163,4 +168,5 @@ export function randomVariance(variance: number): number {
 
 export function resetDomesticFlags(state: GameState): void {
   for (const city of state.cities) city.domesticDone = false;
+  resetGeneralActions(state);
 }

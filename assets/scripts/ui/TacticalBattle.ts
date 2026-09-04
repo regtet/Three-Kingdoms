@@ -1,6 +1,22 @@
 import { Button, Color, Graphics, Label, Node, UITransform, Vec3 } from 'cc';
 import type { BattleInput, GameState } from '../core/models/types';
 import { findCity, findGeneral } from '../core/utils/helpers';
+import {
+  createHexBattle,
+  hexAdvance,
+  hexAttack,
+  hexCanMoveTo,
+  hexDistance,
+  hexEq,
+  hexesInRadius,
+  hexMoveTo,
+  hexRetreat,
+  hexTerrain,
+  hexToPixel,
+  hexWait,
+  type HexAxial,
+  type HexBattleState,
+} from '../core/systems/hexBattle';
 import { COL, L } from './OfficialLayout';
 import { drawModalFrame, toColor } from './UiDraw';
 
@@ -10,7 +26,31 @@ export type TacticalResult = {
   log: string[];
 };
 
-/** 简化战术战：5×5 网格，移动/攻击/待机/退却 */
+function drawHexFill(g: Graphics, size: number): void {
+  const pts: { x: number; y: number }[] = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 180) * (60 * i - 30);
+    pts.push({ x: size * Math.cos(angle), y: size * Math.sin(angle) });
+  }
+  g.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < 6; i++) g.lineTo(pts[i].x, pts[i].y);
+  g.close();
+  g.fill();
+}
+
+function drawHexStroke(g: Graphics, size: number): void {
+  const pts: { x: number; y: number }[] = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 180) * (60 * i - 30);
+    pts.push({ x: size * Math.cos(angle), y: size * Math.sin(angle) });
+  }
+  g.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < 6; i++) g.lineTo(pts[i].x, pts[i].y);
+  g.close();
+  g.stroke();
+}
+
+/** HEX 战术战：半径 2 轴向格，点邻格移动 / 攻击 / 待机 / 退却 */
 export function buildTacticalBattlePanel(
   parent: Node,
   state: GameState,
@@ -28,9 +68,9 @@ export function buildTacticalBattlePanel(
 
   const frame = new Node('Frame');
   panel.addChild(frame);
-  frame.setPosition(0, 80, 0);
-  frame.addComponent(UITransform).setContentSize(640, 780);
-  drawModalFrame(frame.addComponent(Graphics), 640, 780);
+  frame.setPosition(0, L.TACT_FRAME_Y, 0);
+  frame.addComponent(UITransform).setContentSize(L.TACT_FRAME_W, L.TACT_FRAME_H);
+  drawModalFrame(frame.addComponent(Graphics), L.TACT_FRAME_W, L.TACT_FRAME_H);
 
   const from = findCity(state, input.fromCityId);
   const to = findCity(state, input.targetCityId);
@@ -38,108 +78,112 @@ export function buildTacticalBattlePanel(
 
   const title = new Node('Title');
   panel.addChild(title);
-  title.setPosition(0, 420, 0);
+  title.setPosition(0, L.TACT_TITLE_Y, 0);
   title.addComponent(UITransform).setContentSize(600, 36);
   const tl = title.addComponent(Label);
-  tl.string = `战术战 · ${from.name} → ${to.name}`;
+  tl.string = `战术战 · HEX · ${from.name} → ${to.name}`;
   tl.fontSize = 24;
   tl.color = toColor(COL.textGold);
   tl.horizontalAlign = Label.HorizontalAlign.CENTER;
 
   const info = new Node('Info');
   panel.addChild(info);
-  info.setPosition(0, 370, 0);
+  info.setPosition(0, L.TACT_INFO_Y, 0);
   info.addComponent(UITransform).setContentSize(580, 24);
   const il = info.addComponent(Label);
-  il.string = `${atk.name} 率 ${input.attackerTroops} 兵`;
+  il.string = `${atk.name} 率 ${input.attackerTroops} 兵 · 点相邻格移动`;
   il.fontSize = 16;
   il.color = toColor(COL.textDim);
   il.horizontalAlign = Label.HorizontalAlign.CENTER;
 
   const gridRoot = new Node('Grid');
   panel.addChild(gridRoot);
-  gridRoot.setPosition(0, 120, 0);
+  gridRoot.setPosition(0, L.TACT_GRID_Y, 0);
 
-  const GRID = 5;
-  const CELL = 56;
-  let ax = 1; let ay = 2;
-  let dx = 3; let dy = 2;
-  let turn = 0;
-  const maxTurns = 4;
-  const logs: string[] = [];
+  const battle = createHexBattle();
+  const hexSize = L.TACT_HEX_SIZE;
 
   const logLb = new Node('Log');
   panel.addChild(logLb);
-  logLb.setPosition(0, -120, 0);
-  logLb.addComponent(UITransform).setContentSize(560, 80);
+  logLb.setPosition(0, L.TACT_LOG_Y, 0);
+  logLb.addComponent(UITransform).setContentSize(560, L.TACT_LOG_H);
   const ll = logLb.addComponent(Label);
   ll.fontSize = 13;
   ll.lineHeight = 18;
   ll.color = toColor(COL.textDim);
   ll.overflow = Label.Overflow.CLAMP;
 
-  const refreshGrid = () => {
-    gridRoot.destroyAllChildren();
-    for (let y = 0; y < GRID; y++) {
-      for (let x = 0; x < GRID; x++) {
-        const cell = new Node(`C_${x}_${y}`);
-        gridRoot.addChild(cell);
-        cell.setPosition((x - 2) * CELL, (2 - y) * CELL, 0);
-        cell.addComponent(UITransform).setContentSize(CELL - 4, CELL - 4);
-        const g = cell.addComponent(Graphics);
-        const terrain = (x + y) % 3;
-        const col = terrain === 0 ? { r: 40, g: 70, b: 45, a: 255 }
-          : terrain === 1 ? { r: 35, g: 55, b: 38, a: 255 }
-            : { r: 30, g: 45, b: 65, a: 255 };
-        g.fillColor = toColor(col);
-        g.roundRect(-(CELL - 4) / 2, -(CELL - 4) / 2, CELL - 4, CELL - 4, 4);
-        g.fill();
-        if (x === ax && y === ay) {
-          g.strokeColor = toColor(COL.textGold);
-          g.lineWidth = 2;
-          g.roundRect(-(CELL - 4) / 2, -(CELL - 4) / 2, CELL - 4, CELL - 4, 4);
-          g.stroke();
-          const u = new Node('U');
-          cell.addChild(u);
-          u.addComponent(UITransform).setContentSize(CELL, CELL);
-          const ul = u.addComponent(Label);
-          ul.string = '我';
-          ul.fontSize = 20;
-          ul.color = new Color(255, 220, 100, 255);
-          ul.horizontalAlign = Label.HorizontalAlign.CENTER;
-        }
-        if (x === dx && y === dy) {
-          const u = new Node('E');
-          cell.addChild(u);
-          u.addComponent(UITransform).setContentSize(CELL, CELL);
-          const ul = u.addComponent(Label);
-          ul.string = '敌';
-          ul.fontSize = 20;
-          ul.color = new Color(255, 120, 100, 255);
-          ul.horizontalAlign = Label.HorizontalAlign.CENTER;
-        }
-      }
-    }
-    ll.string = logs.slice(-4).join('\n') || '选择指令';
-  };
-
-  const finish = (retreated: boolean, modifier: number) => {
-    onDone({ retreated, modifier, log: logs });
+  const finish = (s: HexBattleState) => {
+    onDone({ retreated: s.retreated, modifier: s.modifier, log: s.logs });
     panel.destroy();
   };
 
-  const mkCmd = (text: string, x: number, cb: () => void) => {
+  const refreshGrid = () => {
+    gridRoot.destroyAllChildren();
+    const cells = hexesInRadius(battle.radius);
+    for (const h of cells) {
+      const pos = hexToPixel(h, hexSize);
+      const cell = new Node(`H_${h.q}_${h.r}`);
+      gridRoot.addChild(cell);
+      cell.setPosition(pos.x, pos.y, 0);
+      const hit = hexSize * 1.85;
+      cell.addComponent(UITransform).setContentSize(hit, hit);
+      const g = cell.addComponent(Graphics);
+      const terrain = hexTerrain(h);
+      const col = terrain === 0
+        ? { r: 40, g: 72, b: 46, a: 255 }
+        : terrain === 1
+          ? { r: 36, g: 56, b: 40, a: 255 }
+          : { r: 32, g: 48, b: 68, a: 255 };
+      g.fillColor = toColor(col);
+      drawHexFill(g, hexSize - 2);
+
+      const movable = hexCanMoveTo(battle, h);
+      if (movable) {
+        g.strokeColor = toColor({ r: 180, g: 210, b: 255, a: 200 });
+        g.lineWidth = 2;
+        drawHexStroke(g, hexSize - 2);
+      }
+      if (hexEq(h, battle.player)) {
+        g.strokeColor = toColor(COL.textGold);
+        g.lineWidth = 2;
+        drawHexStroke(g, hexSize - 2);
+        addUnitLabel(cell, '我', new Color(255, 220, 100, 255));
+      } else if (hexEq(h, battle.enemy)) {
+        addUnitLabel(cell, '敌', new Color(255, 120, 100, 255));
+      }
+
+      if (movable) {
+        cell.addComponent(Button);
+        const dest: HexAxial = { q: h.q, r: h.r };
+        cell.on(Button.EventType.CLICK, () => {
+          hexMoveTo(battle, dest);
+          afterCmd();
+        });
+      }
+    }
+    const dist = hexDistance(battle.player, battle.enemy);
+    ll.string = (battle.logs.slice(-4).join('\n') || '选择邻格或底部指令')
+      + `\n回合 ${battle.turn}/${battle.maxTurns} · 距敌 ${dist} 格`;
+  };
+
+  const afterCmd = () => {
+    refreshGrid();
+    if (battle.done) finish(battle);
+  };
+
+  const mkCmd = (text: string, xi: number, cb: () => void) => {
     const n = new Node(`Cmd_${text}`);
     panel.addChild(n);
-    n.setPosition(x, -280, 0);
-    n.addComponent(UITransform).setContentSize(100, 40);
+    n.setPosition(xi * L.TACT_CMD_GAP, L.TACT_CMD_Y, 0);
+    n.addComponent(UITransform).setContentSize(L.TACT_CMD_W, L.TACT_CMD_H);
     const g = n.addComponent(Graphics);
     g.fillColor = toColor(COL.btn);
-    g.roundRect(-50, -20, 100, 40, 6);
+    g.roundRect(-L.TACT_CMD_W / 2, -L.TACT_CMD_H / 2, L.TACT_CMD_W, L.TACT_CMD_H, 6);
     g.fill();
     const lb = new Node('L');
     n.addChild(lb);
-    lb.addComponent(UITransform).setContentSize(100, 40);
+    lb.addComponent(UITransform).setContentSize(L.TACT_CMD_W, L.TACT_CMD_H);
     const l = lb.addComponent(Label);
     l.string = text;
     l.fontSize = 16;
@@ -149,43 +193,23 @@ export function buildTacticalBattlePanel(
     n.on(Button.EventType.CLICK, cb);
   };
 
-  mkCmd('移动', -150, () => {
-    if (turn >= maxTurns) return;
-    ax = Math.min(GRID - 1, ax + 1);
-    logs.push('我军前进');
-    turn++;
-    refreshGrid();
-    if (ax === dx && ay === dy) {
-      logs.push('接敌！');
-      finish(false, 1.15);
-    } else if (turn >= maxTurns) finish(false, 1.0);
-  });
-
-  mkCmd('攻击', -50, () => {
-    const dist = Math.abs(ax - dx) + Math.abs(ay - dy);
-    if (dist <= 1) {
-      logs.push('猛攻！');
-      finish(false, 1.2);
-    } else {
-      logs.push('距离过远');
-      turn++;
-      if (turn >= maxTurns) finish(false, 0.95);
-      refreshGrid();
-    }
-  });
-
-  mkCmd('待机', 50, () => {
-    logs.push('整顿队形');
-    turn++;
-    if (turn >= maxTurns) finish(false, 1.05);
-    refreshGrid();
-  });
-
-  mkCmd('退却', 150, () => {
-    logs.push('全军退却');
-    finish(true, 0.8);
-  });
+  mkCmd('前进', -1.5, () => { hexAdvance(battle); afterCmd(); });
+  mkCmd('攻击', -0.5, () => { hexAttack(battle); afterCmd(); });
+  mkCmd('待机', 0.5, () => { hexWait(battle); afterCmd(); });
+  mkCmd('退却', 1.5, () => { hexRetreat(battle); afterCmd(); });
 
   refreshGrid();
   return panel;
+}
+
+function addUnitLabel(cell: Node, text: string, color: Color): void {
+  const u = new Node('U');
+  cell.addChild(u);
+  u.addComponent(UITransform).setContentSize(40, 40);
+  const ul = u.addComponent(Label);
+  ul.string = text;
+  ul.fontSize = 20;
+  ul.color = color;
+  ul.horizontalAlign = Label.HorizontalAlign.CENTER;
+  u.setPosition(new Vec3(0, 0, 0));
 }

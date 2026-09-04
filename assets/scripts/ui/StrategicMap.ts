@@ -45,6 +45,12 @@ export function drawStrategicMap(
 
   // 道路（邻接连线）
   const drawn = new Set<string>();
+  const posOf = (id: string) => {
+    const layout = cities.find((c) => c.id === id);
+    if (!layout) return null;
+    return mapScenarioCoord(layout.x, layout.y);
+  };
+
   for (const c of cities) {
     const posA = mapScenarioCoord(c.x, c.y);
     for (const nid of c.neighbors) {
@@ -62,6 +68,8 @@ export function drawStrategicMap(
     }
   }
 
+  drawMissionRoutes(g, state, posOf);
+
   // 城池标记由 GameRoot cityNode 绘制，此处仅画选中圈
   if (selectedCityId) {
     const layout = cities.find((c) => c.id === selectedCityId);
@@ -72,6 +80,69 @@ export function drawStrategicMap(
       g.circle(pos.x, pos.y, 28);
       g.stroke();
     }
+  }
+}
+
+type MapPos = { x: number; y: number };
+
+function drawDashedLine(
+  g: Graphics,
+  a: MapPos,
+  b: MapPos,
+  dash = 8,
+  gap = 6,
+): void {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return;
+  const ux = dx / len;
+  const uy = dy / len;
+  let d = 0;
+  let drawing = true;
+  while (d < len) {
+    const next = Math.min(len, d + (drawing ? dash : gap));
+    if (drawing) {
+      g.moveTo(a.x + ux * d, a.y + uy * d);
+      g.lineTo(a.x + ux * next, a.y + uy * next);
+      g.stroke();
+    }
+    d = next;
+    drawing = !drawing;
+  }
+}
+
+function drawMissionRoutes(
+  g: Graphics,
+  state: GameState,
+  posOf: (id: string) => MapPos | null,
+): void {
+  for (const m of state.envoyMissions ?? []) {
+    if (m.status !== 'traveling') continue;
+    const path = m.path && m.path.length >= 2 ? m.path : [m.fromCityId, m.toCityId];
+    g.strokeColor = toColor({ r: 255, g: 210, b: 80, a: 210 });
+    g.lineWidth = 2;
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = posOf(path[i]);
+      const b = posOf(path[i + 1]);
+      if (!a || !b) continue;
+      drawDashedLine(g, a, b);
+    }
+    const cur = posOf(path[Math.min(m.pathIndex ?? 0, path.length - 1)]);
+    if (cur) {
+      g.fillColor = toColor({ r: 255, g: 220, b: 90, a: 230 });
+      g.circle(cur.x, cur.y + 18, 5);
+      g.fill();
+    }
+  }
+
+  for (const t of state.transportMissions ?? []) {
+    const a = posOf(t.fromCityId);
+    const b = posOf(t.toCityId);
+    if (!a || !b) continue;
+    g.strokeColor = toColor({ r: 90, g: 200, b: 220, a: 200 });
+    g.lineWidth = 2;
+    drawDashedLine(g, a, b);
   }
 }
 

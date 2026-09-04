@@ -16,11 +16,9 @@ import { saveToStorage, loadFromStorage, hasSave, clearSave, setActiveSlot, getA
 import { formatSaveSummary, peekSaveSummary, summarizeState, formatSaveSummaryDetail, formatAllSaveSlots, formatFactionStatsReport } from '../systems/saveSummary';
 import { monthlySettlement } from '../systems/income';
 import {
-  proposeAlliance,
-  proposeTruce,
   declareWar as doDeclareWar,
-  sendGift,
 } from '../systems/diplomacy';
+import { dispatchEnvoy } from '../systems/envoy';
 import {
   moveGeneral,
   rewardGeneral,
@@ -30,10 +28,11 @@ import {
   recruitWildGeneral,
   getWildGeneralsAtCity,
 } from '../systems/personnel';
-import { useFireAttack, useSowDiscord, useDisrupt, useFakeReport, useInspire } from '../systems/stratagem';
+import { useFireAttack, useSowDiscord, useDisrupt, useFakeReport, useInspire, useUndermineLoyalty, useSleeper } from '../systems/stratagem';
 import { formatCityStateBrief, formatCityStateReport, getCityStateView } from '../utils/cityState';
 import { formatDiplomacyReport } from '../systems/diplomacyReport';
 import { estimateBattle } from '../systems/battle';
+import { emitGameStateChange } from '../event/GameEventBus';
 
 export class GameEngine {
   private _state: GameState | null = null;
@@ -108,24 +107,24 @@ export class GameEngine {
   /** 获取城池状态（官方信息面板数据） */
   getCityState(cityId: string): string {
     if (!this._state) return '无进行中的游戏';
-    return formatCityStateReport(getCityStateView(this._state, cityId));
+    return formatCityStateReport(getCityStateView(this._state, cityId), this._state);
   }
 
   // ── 内政 ──
-  develop(cityId: string): ActionResult {
-    return this.wrap(() => developCity(this._state!, cityId));
+  develop(cityId: string, generalId: string): ActionResult {
+    return this.wrap(() => developCity(this._state!, cityId, generalId));
   }
 
-  farm(cityId: string): ActionResult {
-    return this.wrap(() => farmCity(this._state!, cityId));
+  farm(cityId: string, generalId: string): ActionResult {
+    return this.wrap(() => farmCity(this._state!, cityId, generalId));
   }
 
-  govern(cityId: string): ActionResult {
-    return this.wrap(() => governCity(this._state!, cityId));
+  govern(cityId: string, generalId: string): ActionResult {
+    return this.wrap(() => governCity(this._state!, cityId, generalId));
   }
 
-  recruit(cityId: string, amount: number): ActionResult {
-    return this.wrap(() => recruitTroops(this._state!, cityId, amount));
+  recruit(cityId: string, amount: number, generalId: string): ActionResult {
+    return this.wrap(() => recruitTroops(this._state!, cityId, amount, generalId));
   }
 
   // ── 军事 ──
@@ -135,9 +134,11 @@ export class GameEngine {
     if (result.attackerWins || result.attackerLoss > 0) {
       checkVictory(this._state);
       saveToStorage(this._state);
-    } else if (!result.log[0]?.includes('不能') && !result.log[0]?.includes('不足')) {
+      emitGameStateChange();
+    } else if (!result.log[0]?.includes('不能') && !result.log[0]?.includes('不足') && !result.log[0]?.includes('已行动')) {
       checkVictory(this._state);
       saveToStorage(this._state);
+      emitGameStateChange();
     }
     return result;
   }
@@ -210,19 +211,25 @@ export class GameEngine {
     return this.wrap(() => useInspire(this._state!, cityId, generalId));
   }
 
-  // ── 外交 ──
-  alliance(toFactionId: string): ActionResult {
-    if (!this._state) return { success: false, message: '无进行中的游戏' };
-    const r = proposeAlliance(this._state, this._state.playerFactionId, toFactionId);
-    if (r.success) saveToStorage(this._state);
-    return r;
+  undermineLoyalty(cityId: string, generalId: string, targetCityId: string): ActionResult {
+    return this.wrap(() => useUndermineLoyalty(this._state!, cityId, generalId, targetCityId));
   }
 
-  truce(toFactionId: string): ActionResult {
-    if (!this._state) return { success: false, message: '无进行中的游戏' };
-    const r = proposeTruce(this._state, this._state.playerFactionId, toFactionId);
-    if (r.success) saveToStorage(this._state);
-    return r;
+  sleeperStratagem(cityId: string, generalId: string, targetCityId: string): ActionResult {
+    return this.wrap(() => useSleeper(this._state!, cityId, generalId, targetCityId));
+  }
+
+  // ── 外交（赠礼/同盟/停战须派武将出使；宣战即时） ──
+  alliance(toFactionId: string, fromCityId: string, generalId: string): ActionResult {
+    return this.wrap(() =>
+      dispatchEnvoy(this._state!, fromCityId, generalId, toFactionId, 'alliance'),
+    );
+  }
+
+  truce(toFactionId: string, fromCityId: string, generalId: string): ActionResult {
+    return this.wrap(() =>
+      dispatchEnvoy(this._state!, fromCityId, generalId, toFactionId, 'truce'),
+    );
   }
 
   declareWar(toFactionId: string): ActionResult {
@@ -232,11 +239,10 @@ export class GameEngine {
     return r;
   }
 
-  gift(toFactionId: string, fromCityId: string): ActionResult {
-    if (!this._state) return { success: false, message: '无进行中的游戏' };
-    const r = sendGift(this._state, this._state.playerFactionId, toFactionId, fromCityId);
-    if (r.success) saveToStorage(this._state);
-    return r;
+  gift(toFactionId: string, fromCityId: string, generalId: string): ActionResult {
+    return this.wrap(() =>
+      dispatchEnvoy(this._state!, fromCityId, generalId, toFactionId, 'gift'),
+    );
   }
 
   /** 官方回合结束：AI → 月结算 → 新回合 */
@@ -261,13 +267,17 @@ export class GameEngine {
     }
 
     saveToStorage(this._state);
+    emitGameStateChange();
     return { success: true, message: '回合结束，已完成月结算' };
   }
 
   private wrap(fn: () => ActionResult): ActionResult {
     if (!this._state) return { success: false, message: '无进行中的游戏' };
     const r = fn();
-    if (r.success) saveToStorage(this._state);
+    if (r.success) {
+      saveToStorage(this._state);
+      emitGameStateChange();
+    }
     return r;
   }
 

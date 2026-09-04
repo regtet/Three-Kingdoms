@@ -1,9 +1,14 @@
 import { GameEngine } from '../assets/scripts/core/game/GameEngine';
 import { SCENARIO_001 } from '../assets/scripts/core/data/scenario_001';
 import { findCity } from '../assets/scripts/core/utils/helpers';
+import { getActableGeneralsInCity } from '../assets/scripts/core/systems/actionGuard';
 
 const engine = new GameEngine();
 engine.newGame(SCENARIO_001, 'wei');
+
+function pickGeneral(cityId: string): string | null {
+  return getActableGeneralsInCity(engine.state!, cityId)[0]?.id ?? null;
+}
 
 console.log('=== 三国志 MVP 模拟 ===');
 console.log(`玩家: 魏 | 剧本: ${SCENARIO_001.name}`);
@@ -14,9 +19,11 @@ for (let i = 0; i < 5; i++) {
 
   const cities = s.cities.filter((c) => c.factionId === 'wei');
   for (const city of cities.slice(0, 2)) {
-    engine.develop(city.id);
-    engine.farm(city.id);
-    engine.recruit(city.id, 300);
+    const gens = getActableGeneralsInCity(engine.state!, city.id);
+    if (gens[0]) engine.develop(city.id, gens[0].id);
+    if (gens[1]) engine.farm(city.id, gens[1].id);
+    const recruiter = getActableGeneralsInCity(engine.state!, city.id)[0];
+    if (recruiter) engine.recruit(city.id, 300, recruiter.id);
   }
 
   const from = findCity(engine.state!, 'xuchang');

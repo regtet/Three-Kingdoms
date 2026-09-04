@@ -30,6 +30,8 @@ export interface General {
   factionId: string;
   cityId: string;
   status: GeneralStatus;
+  /** 本月是否已执行命令（月初重置） */
+  actionUsed: boolean;
 }
 
 export interface City {
@@ -114,12 +116,68 @@ export interface BattleResult {
   cityCaptured: boolean;
 }
 
+export type EnvoyPurpose = 'gift' | 'alliance' | 'truce';
+
+export type EnvoyStatus = 'traveling' | 'arrived' | 'failed';
+
+export interface EnvoyMission {
+  id: string;
+  factionId: string;
+  generalId: string;
+  fromCityId: string;
+  toCityId: string;
+  targetFactionId: string;
+  purpose: EnvoyPurpose;
+  turnsRemaining: number;
+  status: EnvoyStatus;
+  /** 出发城 → 目标城的完整路径（含两端） */
+  path: string[];
+  /** 当前所在路径下标（0 = 出发城） */
+  pathIndex: number;
+}
+
+export type StrategyEffectType = 'loyalty_erosion' | 'sleeper';
+
+export type StrategyEffectStatus = 'active' | 'triggered' | 'expired';
+
+/** 计略延迟效果（伪书疑心、敌中作敌等） */
+export interface StrategyEffect {
+  id: string;
+  type: StrategyEffectType;
+  sourceFactionId: string;
+  sourceGeneralId: string;
+  targetGeneralId: string;
+  /** 效果强度（忠诚降低量等） */
+  magnitude: number;
+  /** 剩余生效月数 */
+  turnsRemaining: number;
+  status: StrategyEffectStatus;
+}
+
 export interface TransportInput {
   fromCityId: string;
   toCityId: string;
   gold: number;
   food: number;
   troops: number;
+  /** 执行运输的武将 */
+  generalId: string;
+}
+
+export type TransportStatus = 'in_transit' | 'arrived';
+
+export interface TransportMission {
+  id: string;
+  factionId: string;
+  generalId: string;
+  fromCityId: string;
+  toCityId: string;
+  gold: number;
+  food: number;
+  troops: number;
+  /** 剩余月数，0 表示本月结送达 */
+  turnsRemaining: number;
+  status: TransportStatus;
 }
 
 export interface WildGeneral {
@@ -149,6 +207,12 @@ export interface GameState {
   actionLog: LogEntry[];
   /** 在野武将（可登用） */
   wildGenerals: WildGeneral[];
+  /** 在途运输任务 */
+  transportMissions: TransportMission[];
+  /** 计略延迟效果 */
+  strategyEffects: StrategyEffect[];
+  /** 在途使者 */
+  envoyMissions: EnvoyMission[];
   winnerFactionId?: string;
   endReason?: 'conquest' | 'eliminated';
 }
@@ -166,7 +230,13 @@ export interface CityStateView {
   /** 预计下月兵粮消耗 */
   projectedTroopUpkeep: number;
   maxTroops: number;
+  /** @deprecated 改用武将 actionUsed；保留字段兼容存档 */
   canDomestic: boolean;
+  /** 本城尚可行动的武将数 */
+  actableGeneralCount: number;
+  /** 在途运输：发往本城 / 发自本城 */
+  transportInbound: number;
+  transportOutbound: number;
   neighborSummary: { id: string; name: string; factionName: string; troops: number; relation: DiplomaticStatus }[];
 }
 
@@ -201,12 +271,16 @@ export interface Formulas {
     ambush: { goldCost: number; foodCost: number; minIntelligence: number; troopDamageRatio: number };
     fakeReport: { goldCost: number; minIntelligence: number; orderLoss: number };
     inspire: { goldCost: number; minIntelligence: number; loyaltyGain: number };
+    undermineLoyalty: { goldCost: number; minIntelligence: number; loyaltyLoss: number; durationMonths: number };
+    sleeper: { goldCost: number; minIntelligence: number; durationMonths: number; defectionBaseRate: number };
   };
   diplomacy: {
     giftGoldCost: number;
     giftRelationGain: number;
     allianceMinDuration: number;
     truceMinDuration: number;
+    /** 途经第三方敌对城时被拦截的概率 */
+    envoyInterceptChance: number;
   };
   ai: {
     developThresholdCommerce: number;
@@ -215,6 +289,7 @@ export interface Formulas {
     minTroopsToAttack: number;
     stratagemChance: number;
     governChance: number;
+    diplomacyChance: number;
   };
   wildRecruit: { minGold: number };
 }
@@ -277,5 +352,5 @@ export interface ActionResult {
   message: string;
 }
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 9;
 export const SAVE_KEY = 'three_kingdoms_save';

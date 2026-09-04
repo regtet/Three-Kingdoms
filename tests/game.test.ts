@@ -9,6 +9,7 @@ import { proposeTruce, getRelation } from '../assets/scripts/core/systems/diplom
 import { useFireAttack, useSowDiscord, useDisrupt, useFakeReport, useInspire } from '../assets/scripts/core/systems/stratagem';
 import { searchTalent, recruitWildGeneral, processDefections } from '../assets/scripts/core/systems/personnel';
 import { SCENARIO_002 } from '../assets/scripts/core/data/scenario_002';
+import { SCENARIO_003 } from '../assets/scripts/core/data/scenario_003';
 import { getCityStateView, formatCityStateReport } from '../assets/scripts/core/utils/cityState';
 import { formatFactionStatsReport } from '../assets/scripts/core/systems/saveSummary';
 import { GameEngine } from '../assets/scripts/core/game/GameEngine';
@@ -18,23 +19,39 @@ function newState(factionId = 'wei'): GameState {
   return createNewGame(SCENARIO_001, factionId);
 }
 
+function generalInCity(s: GameState, cityId: string, index = 0): string {
+  const ids = s.generals.filter((g) => g.cityId === cityId && g.factionId === s.playerFactionId);
+  return ids[index].id;
+}
+
 describe('official domestic', () => {
   it('develop increases commerce not direct gold spam', () => {
     const s = newState('wei');
     const city = findCity(s, 'luoyang');
     const commerce = city.commerce;
-    const r = developCity(s, 'luoyang');
+    const gid = generalInCity(s, 'luoyang');
+    const r = developCity(s, 'luoyang', gid);
     expect(r.success).toBe(true);
     expect(city.commerce).toBeGreaterThan(commerce);
-    expect(city.domesticDone).toBe(true);
+    expect(s.generals.find((g) => g.id === gid)!.actionUsed).toBe(true);
   });
 
-  it('only one domestic per city per month', () => {
+  it('each general can only act once per month', () => {
     const s = newState('wei');
-    developCity(s, 'luoyang');
-    const r = farmCity(s, 'luoyang');
+    const gid = generalInCity(s, 'luoyang');
+    developCity(s, 'luoyang', gid);
+    const r = farmCity(s, 'luoyang', gid);
     expect(r.success).toBe(false);
-    expect(r.message).toContain('本月已执行内政');
+    expect(r.message).toContain('本月已行动');
+  });
+
+  it('different generals can each act once per month', () => {
+    const s = newState('wei');
+    const g0 = generalInCity(s, 'luoyang', 0);
+    const g1 = generalInCity(s, 'luoyang', 1);
+    developCity(s, 'luoyang', g0);
+    const r = farmCity(s, 'luoyang', g1);
+    expect(r.success).toBe(true);
   });
 
   it('monthly income from commerce/agriculture', () => {
@@ -60,6 +77,11 @@ describe('official domestic', () => {
   });
 });
 
+function resetGeneralAction(s: GameState, generalId: string): void {
+  const g = s.generals.find((x) => x.id === generalId);
+  if (g) g.actionUsed = false;
+}
+
 describe('battle and diplomacy', () => {
   it('cannot attack truce faction', () => {
     const s = newState('wei');
@@ -81,7 +103,10 @@ describe('battle and diplomacy', () => {
     findCity(s, 'shouchun').troops = 2000;
     let reduced = false;
     for (let i = 0; i < 25; i++) {
+      findCity(s, 'huaibei').gold = 500;
+      findCity(s, 'huaibei').food = 500;
       findCity(s, 'shouchun').troops = 2000;
+      resetGeneralAction(s, 'g_guojia');
       const r = useFireAttack(s, 'huaibei', 'g_guojia', 'shouchun');
       if (r.success) {
         expect(findCity(s, 'shouchun').troops).toBeLessThan(2000);
@@ -98,7 +123,9 @@ describe('battle and diplomacy', () => {
     findCity(s, 'shouchun').loyalty = 80;
     let ok = false;
     for (let i = 0; i < 25; i++) {
+      findCity(s, 'huaibei').gold = 500;
       findCity(s, 'shouchun').loyalty = 80;
+      resetGeneralAction(s, 'g_guojia');
       const r = useSowDiscord(s, 'huaibei', 'g_guojia', 'shouchun');
       if (r.success) {
         expect(findCity(s, 'shouchun').loyalty).toBeLessThan(80);
@@ -115,7 +142,9 @@ describe('battle and diplomacy', () => {
     const target = findCity(s, 'shouchun');
     let ok = false;
     for (let i = 0; i < 25; i++) {
+      findCity(s, 'huaibei').gold = 500;
       target.order = 80;
+      resetGeneralAction(s, 'g_xunyu');
       const r = useDisrupt(s, 'huaibei', 'g_xunyu', 'shouchun');
       if (r.success) {
         expect(target.order).toBeLessThan(80);
@@ -132,7 +161,9 @@ describe('battle and diplomacy', () => {
     const target = findCity(s, 'shouchun');
     let ok = false;
     for (let i = 0; i < 25; i++) {
+      findCity(s, 'huaibei').gold = 500;
       target.order = 80;
+      resetGeneralAction(s, 'g_guojia');
       const r = useFakeReport(s, 'huaibei', 'g_guojia', 'shouchun');
       if (r.success) {
         expect(target.order).toBeLessThan(80);
@@ -169,7 +200,7 @@ describe('GameEngine official turn', () => {
     const engine = new GameEngine();
     engine.newGame(SCENARIO_001, 'wei');
     const goldBefore = findCity(engine.state!, 'luoyang').gold;
-    engine.develop('luoyang');
+    engine.develop('luoyang', generalInCity(engine.state!, 'luoyang'));
     engine.endTurn();
     expect(engine.state?.turn).toBe(2);
     expect(findCity(engine.state!, 'luoyang').gold).toBeGreaterThanOrEqual(goldBefore);
@@ -223,9 +254,10 @@ describe('faction stats report', () => {
 describe('personnel and battle v0.3', () => {
   it('search talent can add general', () => {
     const s = newState('wei');
-    findCity(s, 'luoyang').gold = 500;
     let found = false;
     for (let i = 0; i < 30; i++) {
+      findCity(s, 'luoyang').gold = 500;
+      s.generals.filter((g) => g.cityId === 'luoyang').forEach((g) => { g.actionUsed = false; });
       const r = searchTalent(s, 'luoyang');
       if (r.success) { found = true; break; }
     }
@@ -255,6 +287,21 @@ describe('personnel and battle v0.3', () => {
     expect(r.success).toBe(true);
     expect(s.generals.some((g) => g.id === wild.id)).toBe(true);
   });
+
+  it('scenario 003 is caocao vs yuanshao duel', () => {
+    const s = createNewGame(SCENARIO_003, 'wei');
+    expect(s.factions.map((f) => f.id).sort()).toEqual(['wei', 'yuan']);
+    expect(findCity(s, 'ye').factionId).toBe('yuan');
+    expect(findCity(s, 'xuchang').factionId).toBe('wei');
+    expect(s.generals.some((g) => g.id === 'g_yuanshao')).toBe(true);
+    expect(s.wildGenerals.some((w) => w.name === '刘备')).toBe(true);
+    const yuanCities = s.cities.filter((c) => c.factionId === 'yuan');
+    const weiCities = s.cities.filter((c) => c.factionId === 'wei');
+    const yuanTroops = yuanCities.reduce((n, c) => n + c.troops, 0);
+    const weiTroops = weiCities.reduce((n, c) => n + c.troops, 0);
+    expect(yuanTroops).toBeGreaterThan(weiTroops);
+    expect(weiCities.length).toBeGreaterThan(yuanCities.length);
+  });
 });
 describe('legacy battle', () => {
   it('can attack adjacent enemy when hostile', () => {
@@ -269,9 +316,11 @@ describe('legacy battle', () => {
     expect(check.ok).toBe(true);
   });
 
-  it('recruit uses city resources', () => {
+  it('recruit uses city resources and consumes general action', () => {
     const s = newState('wei');
-    const r = recruitTroops(s, 'luoyang', 50);
+    const gid = generalInCity(s, 'luoyang');
+    const r = recruitTroops(s, 'luoyang', 50, gid);
     expect(r.success).toBe(true);
+    expect(s.generals.find((g) => g.id === gid)!.actionUsed).toBe(true);
   });
 });

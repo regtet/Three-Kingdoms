@@ -179,24 +179,48 @@ export const STITCH_PORTRAIT_TO_POOL_ID: Record<string, string> = {
   'professional_game_portrait_of_zuo_ci_the_immortal_sage._masterful_digital': 'zuo_ci',
 };
 
-/** 同一立绘复用到多个 ID */
+/** 同一立绘复用到多个 ID（含官渡剧本 g_* ↔ pool_*） */
 export const PORTRAIT_ID_ALIASES: Record<string, string> = {
   wild_taishici: 'g_taishici',
+  wild_liubei: 'g_liubei',
+  wild_guanyu: 'g_guanyu',
+  wild_zhangfei: 'g_zhangfei',
+  wild_zhanghe: 'zhang_he',
+  g_yuanshao: 'yuan_shao',
+  g_yanliang: 'yan_liang',
+  g_wenchou: 'wen_chou',
+  g_tianfeng: 'tian_feng',
+  g_jushou: 'ju_shou',
+  g_zhanghe: 'zhang_he',
+  g_caoren: 'cao_ren',
+  g_yujin: 'yu_jin',
+  /** 暂无独立立绘，复用相近谋士/猛将 */
+  g_shenpei: 'ju_shou',
+  g_gaolan: 'wen_chou',
 };
 
 /** 按武将 ID 解析立绘资源名（含 pool 前缀与别名） */
 export function resolvePortraitFrameKeys(generalId: string): string[] {
   const keys: string[] = [generalId];
+  const pushPool = (id: string) => {
+    if (!id.startsWith('g_') && !id.startsWith('wild_') && !id.startsWith('pool_')) {
+      keys.push(`pool_${id}`);
+    }
+  };
+  pushPool(generalId);
   const alias = PORTRAIT_ID_ALIASES[generalId];
-  if (alias) keys.push(alias);
-  if (!generalId.startsWith('g_') && !generalId.startsWith('wild_')) {
-    keys.push(`pool_${generalId}`);
+  if (alias) {
+    keys.push(alias);
+    pushPool(alias);
   }
   return keys;
 }
 
 /** 游戏中需要立绘但 Stitch 包内暂无的武将（中文名供补图） */
-export const MISSING_GAME_PORTRAITS: { id: string; name: string }[] = [];
+export const MISSING_GAME_PORTRAITS: { id: string; name: string }[] = [
+  { id: 'g_shenpei', name: '审配（暂复用沮授立绘）' },
+  { id: 'g_gaolan', name: '高览（暂复用文丑立绘）' },
+];
 
 /** 储备池 ID → 中文名 */
 export const PORTRAIT_POOL_LABELS: Record<string, string> = {

@@ -1,6 +1,8 @@
 import type { ActionResult, GameState } from '../models/types';
 import { FORMULAS } from '../data/formulas';
 import { addLog, findCity, findGeneral, getCityGenerals } from '../utils/helpers';
+import { canGeneralAct, canAiGeneralAct, markGeneralActed, getActableGeneralsInCity } from './actionGuard';
+import { addStrategyEffect, pickStratagemTargetGeneral } from './strategyEffects';
 
 function validateStratagemBase(
   state: GameState,
@@ -23,6 +25,10 @@ function validateStratagemBase(
   }
   if (!city.neighbors.includes(targetCityId)) return { success: false, message: '只能对相邻城施计' };
   if (target.factionId === city.factionId) return { success: false, message: '不能对本城施计' };
+  const act = playerOnly
+    ? canGeneralAct(state, generalId)
+    : (canAiGeneralAct(state, generalId) ? { ok: true, message: '' } : { ok: false, message: '武将无法行动' });
+  if (!act.ok) return { success: false, message: act.message };
   return null;
 }
 
@@ -54,6 +60,7 @@ function doFireAttack(state: GameState, cityId: string, generalId: string, targe
 
   city.gold -= f.goldCost;
   city.food -= f.foodCost;
+  markGeneralActed(general);
 
   if (!rollStratagemSuccess(state, generalId, targetCityId)) {
     addLog(state, `${aiTag}${general.name} 火计 ${target.name} 失败`, 'stratagem');
@@ -111,6 +118,7 @@ export function useSowDiscord(
   if (city.gold < f.goldCost) return { success: false, message: '金钱不足' };
 
   city.gold -= f.goldCost;
+  markGeneralActed(general);
 
   if (!rollStratagemSuccess(state, generalId, targetCityId)) {
     addLog(state, `${general.name} 离间 ${target.name} 失败`, 'stratagem');
@@ -138,6 +146,7 @@ export function aiSowDiscord(
   const target = findCity(state, targetCityId);
   if (city.gold < f.goldCost) return false;
   city.gold -= f.goldCost;
+  markGeneralActed(general);
   if (!rollStratagemSuccess(state, generalId, targetCityId)) return false;
   target.loyalty = Math.max(0, target.loyalty - f.loyaltyLoss);
   addLog(state, `[AI] ${general.name} 离间 ${target.name}`, 'stratagem');
@@ -161,6 +170,7 @@ export function useDisrupt(
   if (city.gold < f.goldCost) return { success: false, message: '金钱不足' };
 
   city.gold -= f.goldCost;
+  markGeneralActed(general);
 
   if (!rollStratagemSuccess(state, generalId, targetCityId)) {
     addLog(state, `${general.name} 扰乱 ${target.name} 失败`, 'stratagem');
@@ -188,6 +198,7 @@ export function aiDisrupt(
   const target = findCity(state, targetCityId);
   if (city.gold < f.goldCost) return false;
   city.gold -= f.goldCost;
+  markGeneralActed(general);
   if (!rollStratagemSuccess(state, generalId, targetCityId)) return false;
   target.order = Math.max(0, target.order - f.orderLoss);
   addLog(state, `[AI] ${general.name} 扰乱 ${target.name}`, 'stratagem');
@@ -242,10 +253,10 @@ export function applyAmbush(
   return { damage, log };
 }
 
-/** 获取可施计武将（按智力排序） */
+/** 获取可施计武将（按智力排序，未行动） */
 export function getStratagemGenerals(state: GameState, cityId: string, minIntelligence: number) {
-  return getCityGenerals(state, cityId)
-    .filter((g) => g.intelligence >= minIntelligence && g.status !== 'marching')
+  return getActableGeneralsInCity(state, cityId)
+    .filter((g) => g.intelligence >= minIntelligence)
     .sort((a, b) => b.intelligence - a.intelligence);
 }
 
@@ -264,6 +275,7 @@ export function useFakeReport(
   const target = findCity(state, targetCityId);
   if (city.gold < f.goldCost) return { success: false, message: '金钱不足' };
   city.gold -= f.goldCost;
+  markGeneralActed(general);
   if (!rollStratagemSuccess(state, generalId, targetCityId)) {
     addLog(state, `${general.name} 伪报 ${target.name} 失败`, 'stratagem');
     return { success: false, message: '伪报失败' };
@@ -283,7 +295,10 @@ export function useInspire(state: GameState, cityId: string, generalId: string):
   if (general.cityId !== cityId) return { success: false, message: '武将须在本城' };
   if (general.intelligence < f.minIntelligence) return { success: false, message: `智力不足（需要 ${f.minIntelligence}）` };
   if (city.gold < f.goldCost) return { success: false, message: '金钱不足' };
+  const act = canGeneralAct(state, generalId);
+  if (!act.ok) return { success: false, message: act.message };
   city.gold -= f.goldCost;
+  markGeneralActed(general);
   city.loyalty = Math.min(100, city.loyalty + f.loyaltyGain);
   addLog(state, `${general.name} 鼓舞 ${city.name}，民忠 ${city.loyalty}`, 'stratagem');
   return { success: true, message: `鼓舞成功，民忠 ${city.loyalty}` };
@@ -304,6 +319,7 @@ export function aiFakeReport(
   const target = findCity(state, targetCityId);
   if (city.gold < f.goldCost) return false;
   city.gold -= f.goldCost;
+  markGeneralActed(general);
   if (!rollStratagemSuccess(state, generalId, targetCityId)) {
     addLog(state, `[AI] ${general.name} 伪报 ${target.name} 失败`, 'stratagem');
     return false;
@@ -311,4 +327,130 @@ export function aiFakeReport(
   target.order = Math.max(0, target.order - f.orderLoss);
   addLog(state, `[AI] ${general.name} 伪报 ${target.name}，治安 ${target.order}`, 'stratagem');
   return true;
+}
+
+/** 伪书疑心：降低敌将忠诚并挂延迟侵蚀 */
+function doUndermineLoyalty(
+  state: GameState,
+  cityId: string,
+  generalId: string,
+  targetCityId: string,
+  factionId: string,
+  playerOnly: boolean,
+): ActionResult {
+  const f = FORMULAS.stratagem.undermineLoyalty;
+  const err = validateStratagemBase(state, factionId, cityId, generalId, targetCityId, f.minIntelligence, playerOnly);
+  if (err) return err;
+
+  const targetGen = pickStratagemTargetGeneral(state, targetCityId);
+  if (!targetGen) return { success: false, message: '敌城无守将' };
+
+  const city = findCity(state, cityId);
+  const general = findGeneral(state, generalId);
+  if (city.gold < f.goldCost) return { success: false, message: '金钱不足' };
+
+  city.gold -= f.goldCost;
+  markGeneralActed(general);
+
+  const aiTag = playerOnly ? '' : '[AI] ';
+  if (!rollStratagemSuccess(state, generalId, targetCityId)) {
+    addLog(state, `${aiTag}${general.name} 伪书 ${targetGen.name} 失败`, 'stratagem');
+    return { success: false, message: '伪书疑心失败' };
+  }
+
+  targetGen.loyalty = Math.max(0, targetGen.loyalty - f.loyaltyLoss);
+  addStrategyEffect(state, {
+    type: 'loyalty_erosion',
+    sourceFactionId: factionId,
+    sourceGeneralId: generalId,
+    targetGeneralId: targetGen.id,
+    magnitude: Math.max(4, Math.floor(f.loyaltyLoss * 0.6)),
+    turnsRemaining: f.durationMonths,
+  });
+
+  addLog(state, `${aiTag}${general.name} 伪书疑心 ${targetGen.name}，忠诚 ${targetGen.loyalty}`, 'stratagem');
+  return {
+    success: true,
+    message: `${targetGen.name} 忠诚 ${targetGen.loyalty}，流言持续 ${f.durationMonths} 月`,
+  };
+}
+
+export function useUndermineLoyalty(
+  state: GameState,
+  cityId: string,
+  generalId: string,
+  targetCityId: string,
+): ActionResult {
+  return doUndermineLoyalty(state, cityId, generalId, targetCityId, state.playerFactionId, true);
+}
+
+/** 敌中作敌：对敌将施加寝返标记，战时可能倒戈 */
+function doSleeper(
+  state: GameState,
+  cityId: string,
+  generalId: string,
+  targetCityId: string,
+  factionId: string,
+  playerOnly: boolean,
+): ActionResult {
+  const f = FORMULAS.stratagem.sleeper;
+  const err = validateStratagemBase(state, factionId, cityId, generalId, targetCityId, f.minIntelligence, playerOnly);
+  if (err) return err;
+
+  const targetGen = pickStratagemTargetGeneral(state, targetCityId);
+  if (!targetGen) return { success: false, message: '敌城无守将' };
+
+  const city = findCity(state, cityId);
+  const general = findGeneral(state, generalId);
+  if (city.gold < f.goldCost) return { success: false, message: '金钱不足' };
+
+  city.gold -= f.goldCost;
+  markGeneralActed(general);
+
+  const aiTag = playerOnly ? '' : '[AI] ';
+  if (!rollStratagemSuccess(state, generalId, targetCityId)) {
+    addLog(state, `${aiTag}${general.name} 对 ${targetGen.name} 策反失败`, 'stratagem');
+    return { success: false, message: '敌中作敌失败' };
+  }
+
+  addStrategyEffect(state, {
+    type: 'sleeper',
+    sourceFactionId: factionId,
+    sourceGeneralId: generalId,
+    targetGeneralId: targetGen.id,
+    magnitude: 0,
+    turnsRemaining: f.durationMonths,
+  });
+
+  addLog(state, `${aiTag}${general.name} 策反 ${targetGen.name}，战时或生变`, 'stratagem');
+  return { success: true, message: `${targetGen.name} 已中寝返之计（${f.durationMonths} 月内有效）` };
+}
+
+export function useSleeper(
+  state: GameState,
+  cityId: string,
+  generalId: string,
+  targetCityId: string,
+): ActionResult {
+  return doSleeper(state, cityId, generalId, targetCityId, state.playerFactionId, true);
+}
+
+export function aiUndermineLoyalty(
+  state: GameState,
+  factionId: string,
+  cityId: string,
+  generalId: string,
+  targetCityId: string,
+): boolean {
+  return doUndermineLoyalty(state, cityId, generalId, targetCityId, factionId, false).success;
+}
+
+export function aiSleeper(
+  state: GameState,
+  factionId: string,
+  cityId: string,
+  generalId: string,
+  targetCityId: string,
+): boolean {
+  return doSleeper(state, cityId, generalId, targetCityId, factionId, false).success;
 }
