@@ -1,4 +1,5 @@
 import { _decorator, Camera, Canvas, Component, director, macro, Node, UITransform, Size, view } from 'cc';
+import { RemakeRoot } from '../remake/RemakeRoot';
 import { GameRoot } from './GameRoot';
 import { CocosAudioBridge } from './CocosAudioBridge';
 import { applyScreenAdapt } from './ScreenAdapt';
@@ -8,12 +9,12 @@ const { ccclass } = _decorator;
 
 /**
  * 挂到任意节点即可；若无 Canvas 会自动创建。
- * 用法：新建空场景 → 空节点添加 GameBootstrap → 设为启动场景 → 运行
+ * 复刻期挂载 RemakeRoot（不再挂 GameRoot）。
  */
 @ccclass('GameBootstrap')
 export class GameBootstrap extends Component {
   onLoad() {
-    console.log('[GameBootstrap] 启动…');
+    console.log('[GameBootstrap] 启动（Remake）…');
     view.setOrientation(macro.ORIENTATION_PORTRAIT);
 
     const scene = director.getScene()!;
@@ -44,13 +45,18 @@ export class GameBootstrap extends Component {
 
     applyScreenAdapt(canvasNode, canvas.cameraComponent);
 
-    if (!canvasNode.getComponent(GameRoot)) {
-      canvasNode.addComponent(GameRoot);
+    const legacy = canvasNode.getComponent(GameRoot);
+    if (legacy) {
+      canvasNode.removeComponent(legacy);
+    }
+
+    if (!canvasNode.getComponent(RemakeRoot)) {
+      canvasNode.addComponent(RemakeRoot);
     }
     if (!canvasNode.getComponent(CocosAudioBridge)) {
       canvasNode.addComponent(CocosAudioBridge);
     }
 
-    console.log('[GameBootstrap] Canvas 就绪');
+    console.log('[GameBootstrap] RemakeRoot 就绪');
   }
 }

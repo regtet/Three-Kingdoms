@@ -17,11 +17,12 @@ alwaysApply: true
 2. **一次只改一个界面**（主菜单 / 地图 idle / 子面板 / 单个弹窗）
 3. 有截图时先标注冲突区域
 
-## 布局
+## 布局（复刻期）
 
-- 坐标**只**在 `OfficialLayout.ts` 定义；GameRoot/OfficialPanels 只用 `L.*`
-- 子面板分区：`SUB_TITLE → SUB_INFO → SUB_SORT → SUB_LIST → SUB_ACTION → SUB_EXTRA → SUB_FOOTER`
-- 武将列表每页最多 2 行；相邻区域间距 ≥ 8px
+- **新界面**坐标只写在 `remake/shared/RemakeLayout.ts` 的 `RL.*`
+- legacy `OfficialLayout.ts` 仅旧代码/测试过渡，禁止再往里堆新屏常量
+- 一次只改一个界面；相邻区域间距 ≥ 8px
+- 武将列表必须 ScrollView 真滚动（禁止每页 2 行糊弄）
 
 ## 防堆叠（子面板打开时）
 

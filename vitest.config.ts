@@ -14,5 +14,12 @@ export default defineConfig({
   },
   esbuild: {
     target: 'node18',
+    tsconfigRaw: {
+      compilerOptions: {
+        experimentalDecorators: true,
+        target: 'ES2020',
+        module: 'ESNext',
+      },
+    },
   },
 });

@@ -1,3 +1,8 @@
+/**
+ * @deprecated LEGACY — 复刻期禁止在此加功能。
+ * 新 UI 请写 `assets/scripts/remake/`（见 `.cursor/rules/remake-architecture.mdc`）。
+ * 本文件仅作旧实现参考，地图/行动复刻完成后删除。
+ */
 import {
   _decorator,
   Component,

@@ -23,7 +23,6 @@ import { COL, L } from './OfficialLayout';
 import { drawModalFrame, drawPanel, toColor } from './UiDraw';
 
 export { loadCustomGenerals, saveCustomGenerals, CUSTOM_GENERALS_KEY, type CustomGeneralDef };
-export { applyCustomGeneralsToScenario } from '../core/utils/customGenerals';
 
 type AbilityKey = 'leadership' | 'force' | 'intelligence' | 'politics' | 'charm';
 

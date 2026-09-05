@@ -1,8 +1,7 @@
 {
-  /* Base configuration. Do not edit this field. */
-  "extends": "./temp/tsconfig.cocos.json",
+  /* Cocos 打开工程后会在 temp/ 生成完整配置；未打开编辑器时用仓库内 base。 */
+  "extends": "./tsconfig.cocos.base.json",
 
-  /* Add your custom configuration here. */
   "compilerOptions": {
     "strict": false
   }

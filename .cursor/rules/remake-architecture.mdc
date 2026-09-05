@@ -1,0 +1,49 @@
+---
+description: 三国志２ Android 复刻架构——仓库整理后按阶段重构，禁止零敲碎打
+alwaysApply: true
+---
+
+# 复刻架构（强制）
+
+目标：对照 Google Play「三國志２」(`jp.co.koeitecmo.rtk2`) **先复刻再二创**。
+美化后期再做；本阶段只锁机制、决策流、界面结构。
+
+## 五阶段（禁止跳级堆功能）
+
+1. **整理** — 清无用代码；资源（立绘/音频/视频）保留
+2. **定框架** — 目录与规则固化（本文件 + `assets/scripts/remake/`）
+3. **复刻菜单** — 只改 `remake/menu/`
+4. **复刻地图** — 只改 `remake/map/`
+5. **复刻行动机制** — `remake/play/` + `core/systems`（core 可复用，UI 不走 legacy）
+
+未完成当前阶段时，**禁止**回头大改上一阶段，**禁止**在 `ui/GameRoot.ts` 上继续打补丁加功能。
+
+## 目录契约
+
+```
+assets/scripts/
+  core/                 # 纯逻辑，禁止 import 'cc'
+    data/ models/ systems/ game/ event/ utils/
+  remake/               # ★ 复刻 UI 唯一主战场（新代码写这里）
+    RemakeRoot.ts       # 唯一 UI 根（替代 GameRoot）
+    shared/             # 布局、导航、控件
+    menu/               # 阶段3
+    map/                # 阶段4
+    play/               # 阶段5
+  ui/                   # LEGACY：仅只读参考 / 资源桥（音效立绘），禁止新功能
+```
+
+## 硬规则
+
+- **坐标**：复刻界面只用 `remake/shared/RemakeLayout.ts` 的 `RL.*`
+- **legacy** `OfficialLayout.ts` 仅供旧代码与测试过渡，新界面禁止再加常量
+- **一次只做一个屏幕**（标题 / 选剧本 / 选势力 / 地图 idle / 一个命令面板）
+- **互斥**：全屏 Layer 同时只显示一个；子弹打开时底栏命令必须隐藏
+- **武将列表**：必须 ScrollView 真滚动，禁止「每页 2 行」糊弄
+- **core 与 UI**：systems 改数据；remake 只编排与展示
+- **资源**：`assets/resources/portraits|audio|video|brand|backgrounds` 一律保留
+- **改 UI 后**：`npm test` + bump `REMAKE_BUILD_TAG` + 请用户截图验收（不得自称 UI 完成）
+
+## GameBootstrap
+
+启动挂载 `RemakeRoot`（不是 `GameRoot`）。legacy GameRoot 保留到地图/机制复刻完成后再删除。
