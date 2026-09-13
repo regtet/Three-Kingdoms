@@ -35,5 +35,5 @@ export type MenuScreenId =
   | 'faction'
   | 'saveList'
   | 'settings'
-  | 'mapStub'
+  | 'map'
   | 'end';

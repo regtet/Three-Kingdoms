@@ -1,49 +1,86 @@
 ---
-description: 三国志２ Android 复刻架构——仓库整理后按阶段重构，禁止零敲碎打
+description: 三國志２精致重开——对照官方、有图才写、慢做精致
 alwaysApply: true
 ---
 
-# 复刻架构（强制）
+# 复刻架构（精致重开 · 强制）
 
-目标：对照 Google Play「三國志２」(`jp.co.koeitecmo.rtk2`) **先复刻再二创**。
-美化后期再做；本阶段只锁机制、决策流、界面结构。
+目标：对照 Google Play「三國志２」(`jp.co.koeitecmo.rtk2`) **先结构复刻，再二创美化**。  
+允许慢；**禁止**无参考图写 UI、禁止跳级堆功能、禁止自称完成。
 
-## 五阶段（禁止跳级堆功能）
+## 已锁定决策（1B + 2D）
 
-1. **整理** — 清无用代码；资源（立绘/音频/视频）保留
-2. **定框架** — 目录与规则固化（本文件 + `assets/scripts/remake/`）
-3. **复刻菜单** — 只改 `remake/menu/`
-4. **复刻地图** — 只改 `remake/map/`
-5. **复刻行动机制** — `remake/play/` + `core/systems`（core 可复用，UI 不走 legacy）
+- **保留**：`assets/resources/` 静态资源（`portraits` / `audio` / `video` / `brand` / `backgrounds` / `icons` 等）及 `.meta`
+- **推倒重做**：玩法逻辑与全部游戏 UI（旧实现可只读对照，禁止继续打补丁加功能）
+- **引擎**：Cocos Creator 3.8；卡顿主因是动态 `Graphics` + 整页销毁重建，不是「内容太少引擎扛不住」
+- **当前阶段**：章程与官方对照；**未选第一屏前禁止实现任何游戏屏**
 
-未完成当前阶段时，**禁止**回头大改上一阶段，**禁止**在 `ui/GameRoot.ts` 上继续打补丁加功能。
+## 页面门禁（缺图 = 禁止写 UI）
 
-## 目录契约
+每一屏必须按顺序：
+
+1. 对照表中有条目，且 **参考图已齐**
+2. 写该屏结构设计说明（区域划分 / 字段名 / 按钮文案）
+3. 实现（一次只做一个屏）
+4. 用户截图验收通过 → 才开下一屏
+
+缺图时：只更新 [`docs/official-screen-catalog.md`](docs/official-screen-catalog.md) 状态，**不写代码**。
+
+完成定义：有官方参考图 + 结构/字段/按钮语义对齐 + **用户截图验收**。禁止 AI 自称 UI 完成。
+
+## 建议实现顺序（参考图齐后）
+
+1. 空壳导航（Layer 互斥 + 版本号，无玩法）
+2. 标题菜单（定 UI 语言）
+3. 选剧本 / 选势力
+4. 地图 idle
+5. **一次只做一个**命令面板，再绑该屏所需的最小 core API
+6. 战场 / 一骑讨等后置
+
+```
+标题 → 剧本 → 势力 → 地图idle
+  → 选城 → 一大类命令 → 执行 → 回地图
+  → 進行 → AI → 月结算 → 下一回合
+```
+
+## 技术禁令（UI）
+
+- 主界面 **禁止**大量运行时 `Graphics` 当面板/按钮/属性格；用 Sprite / 九宫格 / 预制体
+- **禁止**一点就整页 `destroyAllChildren` 重建；节点常驻，只改 Label / 显隐
+- 地图：优先贴图 + 城点 Sprite，禁止每帧椭圆刷色块冒充地图
+- 坐标只写在 `remake/shared/RemakeLayout.ts` 的 `RL.*`（新框架落地后）
+- 全屏 Layer 互斥；子弹打开时底栏命令必须隐藏
+- 武将列表必须 ScrollView 真滚动，禁止「每页 2 行」
+- 改 UI 后：`npm test` + bump 构建号 + 请用户截图验收
+
+## core 重写约定（1B）
+
+- 新逻辑目录名写死为 **`assets/scripts/core/`**（干净重写）
+- 旧实现迁到 **`assets/scripts/legacy-core/`** 只读对照（迁移在「第一屏开工前」执行，Day0 可不物理搬迁）
+- 纯 TypeScript，**禁止** `import 'cc'`
+- **不要**先写满整套 core 再贴皮；以「当前正在做的那一屏」为单位，只实现该屏需要的最小 API
+- 以官方决策流与字段为准；旧代码不当权威
+
+## 目录契约（目标态）
 
 ```
 assets/scripts/
-  core/                 # 纯逻辑，禁止 import 'cc'
-    data/ models/ systems/ game/ event/ utils/
-  remake/               # ★ 复刻 UI 唯一主战场（新代码写这里）
-    RemakeRoot.ts       # 唯一 UI 根（替代 GameRoot）
-    shared/             # 布局、导航、控件
-    menu/               # 阶段3
-    map/                # 阶段4
-    play/               # 阶段5
-  ui/                   # LEGACY：仅只读参考 / 资源桥（音效立绘），禁止新功能
+  core/           # 新纯逻辑（重写中）
+  legacy-core/    # 旧逻辑只读对照（迁移后）
+  remake/         # 新 UI 唯一主战场
+    RemakeRoot.ts
+    shared/ menu/ map/ play/
+  ui/             # LEGACY：只读参考 / 资源加载桥；禁止新功能
+assets/resources/ # 静态资源，一律保留
+docs/
+  official-screen-catalog.md   # 官方页面对照表
 ```
 
-## 硬规则
+## 资源契约
 
-- **坐标**：复刻界面只用 `remake/shared/RemakeLayout.ts` 的 `RL.*`
-- **legacy** `OfficialLayout.ts` 仅供旧代码与测试过渡，新界面禁止再加常量
-- **一次只做一个屏幕**（标题 / 选剧本 / 选势力 / 地图 idle / 一个命令面板）
-- **互斥**：全屏 Layer 同时只显示一个；子弹打开时底栏命令必须隐藏
-- **武将列表**：必须 ScrollView 真滚动，禁止「每页 2 行」糊弄
-- **core 与 UI**：systems 改数据；remake 只编排与展示
-- **资源**：`assets/resources/portraits|audio|video|brand|backgrounds` 一律保留
-- **改 UI 后**：`npm test` + bump `REMAKE_BUILD_TAG` + 请用户截图验收（不得自称 UI 完成）
+- `portraits|audio|video|brand|backgrounds|icons` 一律保留
+- UI 只通过加载桥访问，禁止复制散落到无关目录
 
 ## GameBootstrap
 
-启动挂载 `RemakeRoot`（不是 `GameRoot`）。legacy GameRoot 保留到地图/机制复刻完成后再删除。
+新 UI 根挂载 `RemakeRoot`。legacy `GameRoot` 仅对照，禁止新功能；大清理放在第一屏开工前单独步骤。

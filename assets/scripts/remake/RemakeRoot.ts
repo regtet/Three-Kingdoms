@@ -14,13 +14,13 @@ import { buildScenarioScreen } from './menu/ScenarioScreen';
 import { buildFactionScreen } from './menu/FactionScreen';
 import { buildSettingsScreen, requestExitApp } from './menu/SettingsScreen';
 import { buildSaveListScreen } from './menu/SaveListScreen';
-import { buildMapStubScreen } from './map/MapStubScreen';
+import { createMapScreen, type MapScreenApi } from './map/MapScreen';
 
 const { ccclass } = _decorator;
 
 /**
  * 复刻 UI 根：替代 legacy GameRoot。
- * 阶段3：菜单完整；阶段4/5：占位。
+ * 阶段3：菜单；阶段4：战略地图；阶段5：内政命令面板（其余命令待接）。
  */
 @ccclass('RemakeRoot')
 export class RemakeRoot extends Component {
@@ -28,7 +28,7 @@ export class RemakeRoot extends Component {
   private nav = new RemakeNav();
   private layers: Record<MenuScreenId, Node> = {} as Record<MenuScreenId, Node>;
   private pendingScenario: ScenarioData | null = null;
-  private sessionInfo = '';
+  private mapApi: MapScreenApi | null = null;
 
   onLoad() {
     console.log(`[RemakeRoot] ${REMAKE_BUILD_TAG}`);
@@ -39,7 +39,7 @@ export class RemakeRoot extends Component {
     this.node.addChild(this.root);
     this.root.addComponent(UITransform).setContentSize(RL.W, RL.H);
 
-    const ids: MenuScreenId[] = ['title', 'scenario', 'faction', 'saveList', 'settings', 'mapStub', 'end'];
+    const ids: MenuScreenId[] = ['title', 'scenario', 'faction', 'saveList', 'settings', 'map', 'end'];
     for (const id of ids) {
       this.layers[id] = createScreenLayer(this.root, id);
       this.nav.register(id, this.layers[id]);
@@ -111,12 +111,7 @@ export class RemakeRoot extends Component {
   private startNewGame(scenario: ScenarioData, factionId: string) {
     gameEngine.newGame(scenario, factionId);
     audioManager.startGameBgm();
-    const fac = scenario.factions.find((f) => f.id === factionId);
-    this.sessionInfo =
-      `剧本：${scenario.name}\n势力：${fac?.name ?? factionId}\n` +
-      `城池 ${scenario.cities.length} · 武将 ${scenario.generals.length}\n\n` +
-      `核心逻辑已开局（GameEngine）。\n地图与命令 UI 将在阶段4/5复刻。`;
-    this.showMapStub();
+    this.showMap();
   }
 
   private loadSlot(slot: number) {
@@ -126,18 +121,19 @@ export class RemakeRoot extends Component {
       return;
     }
     audioManager.startGameBgm();
-    this.sessionInfo =
-      `读档槽 ${slot + 1}\n${state.year}年${state.month}月 · 第${state.turn}回合\n\n` +
-      `核心状态已载入。地图 UI 阶段4复刻。`;
-    this.showMapStub();
+    this.showMap();
   }
 
-  private showMapStub() {
-    buildMapStubScreen(this.layers.mapStub, this, this.sessionInfo, () => {
-      audioManager.startMenuBgm();
-      this.showTitle();
+  private showMap() {
+    this.mapApi = createMapScreen(this.layers.map, this, {
+      onBackToTitle: () => {
+        audioManager.startMenuBgm();
+        this.showTitle();
+      },
+      onToast: (msg) => this.toast(msg),
     });
-    this.nav.show('mapStub');
+    this.mapApi.refresh();
+    this.nav.show('map');
   }
 
   private toast(msg: string) {

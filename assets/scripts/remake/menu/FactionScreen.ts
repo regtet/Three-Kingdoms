@@ -41,7 +41,7 @@ export function buildFactionScreen(
   remakeLabel(
     layer,
     'Hint',
-    '选定后进入地图复刻（阶段4占位）',
+    '选定后进入战略地图',
     16,
     new Vec3(0, RL.PAGE_ACTION_Y, 0),
   );

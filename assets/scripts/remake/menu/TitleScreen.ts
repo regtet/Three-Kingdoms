@@ -25,10 +25,10 @@ export function buildTitleScreen(layer: Node, host: Component, actions: TitleAct
   clearChildren(layer);
   fillScreenBg(layer);
   const settings = loadSettings();
-  void preloadMenuBackgrounds().then(() => {
+  preloadMenuBackgrounds(() => {
     applyMenuBackground(layer, settings.menuBackgroundId);
   });
-  void preloadBrandAssets().then(() => {
+  preloadBrandAssets(() => {
     applyMenuLogo(layer);
   });
 
