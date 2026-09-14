@@ -1,13 +1,21 @@
 {
-  "name": "three-kingdoms",
+  "name": "Three-Kingdoms",
+  "uuid": "bed08a7e-1699-4bc2-af6f-e768695add6f",
+  "creator": {
+    "version": "3.8.8"
+  },
   "private": true,
   "version": "0.1.0",
-  "description": "三國志２精致重开 — core 地基",
+  "description": "三国志·天下争锋 — 精致重开",
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen:menu-ui": "tsx scripts/generate-menu-textures.ts"
   },
   "devDependencies": {
+    "@types/node": "^20.14.0",
+    "sharp": "^0.33.5",
+    "tsx": "^4.19.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
   }

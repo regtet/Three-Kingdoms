@@ -1,0 +1,94 @@
+{
+  "__version__": "1.3.9",
+  "log": {
+    "level": 4
+  },
+  "common": {
+    "binGroupConfig": {
+      "threshold": 16,
+      "enable": false
+    },
+    "polyfills": {
+      "asyncFunctions": true
+    },
+    "buildPath": "project://build",
+    "outputName": "android",
+    "mainBundleCompressionType": "merge_dep",
+    "platform": "android"
+  },
+  "BuildTaskManager": {
+    "taskMap": {
+      "1788113457679": {
+        "type": "build",
+        "id": "1788113457679",
+        "progress": 1,
+        "state": "success",
+        "stage": "make",
+        "message": "2026-9-5 19:21:28 make package C:\\Users\\Administrator\\Desktop\\Three-Kingdoms\\build\\android-003 success!",
+        "detailMessage": "asset-db-hook-engine-extends-afterRefresh (2ms)\r",
+        "options": {
+          "name": "Three-Kingdoms",
+          "server": "",
+          "engineModulesConfigKey": "defaultConfig",
+          "platform": "android",
+          "buildPath": "project://build",
+          "debug": false,
+          "buildMode": "normal",
+          "mangleProperties": false,
+          "md5Cache": false,
+          "skipCompressTexture": false,
+          "sourceMaps": false,
+          "overwriteProjectSettings": {
+            "macroConfig": {
+              "cleanupImageCache": "inherit-project-setting"
+            },
+            "includeModules": {
+              "physics": "inherit-project-setting",
+              "physics-2d": "inherit-project-setting",
+              "gfx-webgl2": "off"
+            }
+          },
+          "nativeCodeBundleMode": "wasm",
+          "polyfills": {
+            "asyncFunctions": false
+          },
+          "experimentalEraseModules": false,
+          "startSceneAssetBundle": false,
+          "bundleConfigs": [],
+          "inlineEnum": true,
+          "useBuiltinServer": false,
+          "md5CacheOptions": {
+            "excludes": [],
+            "includes": [],
+            "replaceOnly": [],
+            "handleTemplateMd5Link": true
+          },
+          "mainBundleIsRemote": false,
+          "mainBundleCompressionType": "merge_dep",
+          "useSplashScreen": true,
+          "bundleCommonChunk": false,
+          "packAutoAtlas": true,
+          "startScene": "da5625b8-0b43-42af-bff8-d50ed1f065b6",
+          "outputName": "android-003",
+          "taskName": "android-003",
+          "scenes": [
+            {
+              "url": "db://assets/scenes/Game.scene",
+              "uuid": "da5625b8-0b43-42af-bff8-d50ed1f065b6"
+            }
+          ],
+          "wasmCompressionMode": false,
+          "binGroupConfig": {
+            "threshold": 16,
+            "enable": false
+          },
+          "packages": {},
+          "__version__": "1.3.9",
+          "logDest": "project://temp/builder/log/android2026-8-31 02-10.log"
+        },
+        "time": "2026-9-5 19:20:37",
+        "dirty": false
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "__version__": "3.0.9",
+  "builder": {
+    "options": {
+      "web-desktop": {
+        "configID": "ba388c",
+        "services": []
+      },
+      "android": {
+        "configID": "ba388c",
+        "services": []
+      }
+    },
+    "taskOptionsMap": {
+      "1788112844920": {
+        "configID": "ba388c",
+        "services": [],
+        "__version__": "3.0.9"
+      },
+      "1788113113223": {
+        "configID": "ba388c",
+        "services": [],
+        "__version__": "3.0.9"
+      },
+      "1788113349751": {
+        "configID": "ba388c",
+        "services": [],
+        "__version__": "3.0.9"
+      },
+      "1788113457679": {
+        "configID": "ba388c",
+        "services": [],
+        "__version__": "3.0.9"
+      }
+    },
+    "__version__": "1.3.9"
+  },
+  "builder-options": {
+    "configID": "ba388c",
+    "services": [],
+    "__version__": "3.0.9"
+  }
+}

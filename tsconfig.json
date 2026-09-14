@@ -14,5 +14,12 @@
       "@core": ["assets/core/index.ts"]
     }
   },
-  "include": ["assets/core/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "assets/core/**/*.ts",
+    "assets/remake/shared/SaveProbe.ts",
+    "assets/remake/shared/RemakeLayout.ts",
+    "assets/remake/version.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.ts"
+  ]
 }
