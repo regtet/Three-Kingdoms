@@ -1,65 +1,14 @@
-import { Color, Node, Sprite, UITransform } from 'cc';
-import { MENU_TEX, RL } from '../shared/RemakeLayout';
-import {
-  createClassicButton,
-  loadSpriteFrame,
-  makeLabel,
-  setOpacity,
-} from '../shared/MenuChrome';
-import {
-  applyDesignUiTransform,
-  getVisibleDesignSize,
-  matchVisibleSize,
-  safeClearChildren,
-} from '../shared/ScreenAdapt';
+import { Node } from 'cc';
+import { createMenuShell, makeRowLabel } from '../shared/MenuShell';
 
+/** 占位页也走二级页标准壳，避免「还是老样子」 */
 export async function buildPlaceholderScreen(
   layer: Node,
   title: string,
   onBack: () => void,
 ): Promise<void> {
-  safeClearChildren(layer);
-
-  const vis = getVisibleDesignSize();
-  const root = new Node('Placeholder');
-  layer.addChild(root);
-  matchVisibleSize(root, vis);
-  setOpacity(root, 255);
-
-  const dim = new Node('Dim');
-  root.addChild(dim);
-  matchVisibleSize(dim, vis);
-  const dimSp = dim.addComponent(Sprite);
-  dimSp.sizeMode = Sprite.SizeMode.CUSTOM;
-  const white = await loadSpriteFrame(MENU_TEX.pixel);
-  if (white) dimSp.spriteFrame = white;
-  dimSp.color = new Color(12, 14, 18, 230);
-
-  const titleLabel = makeLabel(root, 'Title', title, {
-    fontSize: 48,
-    color: new Color(232, 200, 120, 255),
-    y: 0,
-    bold: true,
-  });
-  applyDesignUiTransform(titleLabel.node, 0, 200, vis.height);
-
-  const hint = makeLabel(root, 'Hint', '内容页尚未实现 · 精致重开按屏推进', {
-    fontSize: 26,
-    color: new Color(180, 170, 150, 200),
-    y: 0,
-  });
-  applyDesignUiTransform(hint.node, 0, 100, vis.height);
-
-  const backWrap = new Node('BtnBackWrap');
-  root.addChild(backWrap);
-  applyDesignUiTransform(backWrap, 0, -200, vis.height);
-  await createClassicButton(backWrap, {
-    name: 'BtnBack',
-    label: '返回',
-    style: 'quaternary',
-    width: RL.btnQuaternaryW,
-    height: RL.btnQuaternaryH,
-    y: 0,
-    onClick: onBack,
+  const shell = await createMenuShell(layer, title, onBack);
+  makeRowLabel(shell.body, 'Hint', '内容页建设中 · 精致重开按屏推进', 80, {
+    fontSize: 28,
   });
 }

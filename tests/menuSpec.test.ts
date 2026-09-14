@@ -109,15 +109,18 @@ describe('SettingsPrefs', () => {
 });
 
 describe('Title art paths', () => {
-  it('大厅 BGM 为 menu_bgm', () => {
-    expect(MENU_BG_PATH).toBe('ui/backgrounds/bg_palace_moon');
+  it('背景为水墨卷轴、点击为 ui_tap、BGM 为 menu_bgm', () => {
+    expect(MENU_BG_PATH).toBe('ui/backgrounds/bg_ink_scroll');
     expect(MENU_CLICK_SFX).toBe('audio/ui_tap');
     expect(MENU_BGM_PATH).toBe('audio/menu_bgm');
   });
 
-  it('设计分辨率与构建号', () => {
+  it('设计分辨率、统一按钮与构建号', () => {
     expect(RL.W).toBe(1080);
     expect(RL.H).toBe(1920);
-    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.2.0-menu-screens');
+    expect(RL.btnPrimaryW).toBe(RL.btnSecondaryW);
+    expect(RL.btnPrimaryH).toBe(RL.btnQuaternaryH);
+    expect(RL.btnFontSize).toBe(36);
+    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.2.8-clean-title');
   });
 });

@@ -14,24 +14,24 @@ import {
   Vec3,
   tween,
 } from 'cc';
-import { MENU_BGM_PATH, MENU_BGM_VOLUME, MENU_CLICK_SFX, MENU_TEX, RL } from './RemakeLayout';
+import { MENU_BGM_PATH, MENU_BGM_VOLUME, MENU_CLICK_SFX, MENU_TEX, BTN_LABEL_COLOR, RL } from './RemakeLayout';
 import { loadSettings } from './SettingsPrefs';
 import { setVisibleLayerSize } from './ScreenAdapt';
 
 export type MenuButtonStyle = 'primary' | 'secondary' | 'tertiary' | 'quaternary';
 
 const TEX_BY_STYLE: Record<MenuButtonStyle, string> = {
-  primary: MENU_TEX.woodPrimary,
-  secondary: MENU_TEX.woodSecondary,
-  tertiary: MENU_TEX.woodTertiary,
-  quaternary: MENU_TEX.woodQuaternary,
+  primary: MENU_TEX.inkMain,
+  secondary: MENU_TEX.inkMain,
+  tertiary: MENU_TEX.inkMain,
+  quaternary: MENU_TEX.inkMain,
 };
 
 const FONT_BY_STYLE: Record<MenuButtonStyle, number> = {
-  primary: 44,
-  secondary: 38,
-  tertiary: 34,
-  quaternary: 30,
+  primary: RL.btnFontSize,
+  secondary: RL.btnFontSize,
+  tertiary: RL.btnFontSize,
+  quaternary: RL.btnFontSize,
 };
 
 function loadFrame(path: string): Promise<SpriteFrame | null> {
@@ -135,12 +135,14 @@ export async function createClassicButton(
   const rimOp = rim.addComponent(UIOpacity);
   rimOp.opacity = 0;
 
-  const labelColor = opts.labelColor ?? new Color(236, 214, 168, 255);
+  const labelColor =
+    opts.labelColor ??
+    new Color(BTN_LABEL_COLOR.r, BTN_LABEL_COLOR.g, BTN_LABEL_COLOR.b, BTN_LABEL_COLOR.a);
   makeLabel(node, 'Label', opts.label, {
     fontSize: FONT_BY_STYLE[opts.style],
     color: labelColor,
     y: 0,
-    bold: opts.style === 'primary',
+    bold: true,
   });
 
   const btn = node.addComponent(Button);
@@ -171,8 +173,8 @@ export async function createClassicButton(
   return {
     node,
     setSelected: (on: boolean) => {
-      rimOp.opacity = on ? 230 : 0;
-      sp.color = on ? new Color(255, 245, 220, 255) : Color.WHITE;
+      rimOp.opacity = on ? 220 : 0;
+      sp.color = on ? new Color(255, 248, 235, 255) : Color.WHITE;
     },
   };
 }

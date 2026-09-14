@@ -36,14 +36,14 @@ export async function buildGalleryScreen(layer: Node, onBack: () => void): Promi
   factionL.horizontalAlign = 0;
   const attrsL = makeRowLabel(shell.body, 'Attrs', '', 320, {
     fontSize: 24,
-    color: new Color(210, 195, 160, 255),
+    color: new Color(58, 52, 44, 255),
     x: 140,
     width: 480,
   });
   attrsL.horizontalAlign = 0;
   const bioL = makeRowLabel(shell.body, 'Bio', '', 160, {
     fontSize: 22,
-    color: new Color(180, 165, 135, 255),
+    color: new Color(90, 82, 70, 255),
     x: 140,
     width: 480,
   });

@@ -20,11 +20,11 @@ export async function buildSettingsScreen(layer: Node, onBack: () => void): Prom
   const sfxLine = makeRowLabel(shell.body, 'SfxLine', '', 120, { fontSize: 30 });
   makeRowLabel(shell.body, 'Display', '画面：竖屏 1080×1920（预留）', -140, {
     fontSize: 28,
-    color: new Color(170, 160, 140, 220),
+    color: new Color(28, 24, 18, 255),
   });
   makeRowLabel(shell.body, 'Lang', '语言：简体中文', -220, {
     fontSize: 28,
-    color: new Color(170, 160, 140, 220),
+    color: new Color(28, 24, 18, 255),
   });
 
   const refresh = () => {
@@ -124,7 +124,7 @@ export async function buildSettingsScreen(layer: Node, onBack: () => void): Prom
 
   makeLabel(shell.body, 'Hint', '画面与语言项将在后续版本开放', {
     fontSize: 22,
-    color: new Color(140, 130, 110, 180),
+    color: new Color(70, 60, 48, 220),
     y: -300,
   });
 }

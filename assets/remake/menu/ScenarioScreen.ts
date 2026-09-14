@@ -18,7 +18,7 @@ export async function buildScenarioScreen(
   let selected = SCENARIOS[0];
   const detail = makeRowLabel(shell.body, 'Detail', '', -40, {
     fontSize: 26,
-    color: new Color(190, 175, 145, 255),
+    color: new Color(58, 52, 44, 255),
     width: 920,
   });
   detail.horizontalAlign = 1;

@@ -6,7 +6,6 @@ import {
   RL,
 } from '../shared/RemakeLayout';
 import {
-  MENU_BRAND_SUB,
   TITLE_ENTRIES,
   titleEntryVisible,
   type TitleEntryId,
@@ -15,7 +14,6 @@ import {
   createClassicButton,
   fadeOpacity,
   loadSpriteFrame,
-  makeLabel,
   playMenuBgm,
   setOpacity,
   type ClassicButton,
@@ -48,6 +46,11 @@ const STYLE_BY_ID: Record<
   settings: { style: 'quaternary', width: RL.btnQuaternaryW, height: RL.btnQuaternaryH },
 };
 
+/**
+ * 标题屏需求（对齐参考·三国志霸业）：
+ * 全幅水墨底 → Logo → 深墨金边按钮竖列（亮金字）→ 页脚短句。
+ * 不盖大卷轴/浅纸托底，避免糊成一片。
+ */
 export async function buildTitleScreen(
   layer: Node,
   callbacks: TitleCallbacks,
@@ -68,47 +71,31 @@ export async function buildTitleScreen(
   root.addChild(bg);
   const bgSp = bg.addComponent(Sprite);
   const bgFrame = await loadSpriteFrame(MENU_BG_PATH);
-  if (bgFrame) {
-    applySpriteCover(bg, bgSp, bgFrame, vw, vh);
-  } else {
+  if (bgFrame) applySpriteCover(bg, bgSp, bgFrame, vw, vh);
+  else {
     bg.addComponent(UITransform).setContentSize(vw, vh);
     bgSp.sizeMode = Sprite.SizeMode.CUSTOM;
-    bgSp.color = new Color(12, 16, 28, 255);
+    bgSp.color = new Color(220, 210, 190, 255);
   }
 
   const vignette = new Node('Vignette');
   root.addChild(vignette);
   const vigSp = vignette.addComponent(Sprite);
   const vigFrame = await loadSpriteFrame(MENU_TEX.vignette);
-  if (vigFrame) {
-    applySpriteCover(vignette, vigSp, vigFrame, vw, vh);
-  } else {
-    vignette.addComponent(UITransform).setContentSize(vw, vh);
-    vigSp.sizeMode = Sprite.SizeMode.CUSTOM;
-    const pixel = await loadSpriteFrame(MENU_TEX.pixel);
-    if (pixel) vigSp.spriteFrame = pixel;
-    vigSp.color = new Color(0, 0, 0, RL.vignetteOpacity);
-  }
-  const vigOp = vignette.getComponent(UIOpacity) ?? vignette.addComponent(UIOpacity);
-  vigOp.opacity = 255;
+  if (vigFrame) applySpriteCover(vignette, vigSp, vigFrame, vw, vh);
 
   const mist = new Node('Mist');
   root.addChild(mist);
   const mistSp = mist.addComponent(Sprite);
   const mistFrame = await loadSpriteFrame(MENU_TEX.mist);
-  if (mistFrame) {
-    applySpriteCover(mist, mistSp, mistFrame, vw * 1.12, RL.mistH);
-  } else {
-    mist.addComponent(UITransform).setContentSize(vw * 1.12, RL.mistH);
-    mistSp.sizeMode = Sprite.SizeMode.CUSTOM;
-  }
+  if (mistFrame) applySpriteCover(mist, mistSp, mistFrame, vw * 1.06, RL.mistH);
   mist.setPosition(0, RL.mistY, 0);
-  mistSp.color = new Color(255, 236, 200, 110);
+  mistSp.color = new Color(255, 255, 255, 90);
   tween(mist)
     .repeatForever(
       tween(mist)
-        .to(20, { position: new Vec3(40, RL.mistY, 0) })
-        .to(20, { position: new Vec3(-40, RL.mistY, 0) }),
+        .to(26, { position: new Vec3(18, RL.mistY, 0) })
+        .to(26, { position: new Vec3(-18, RL.mistY, 0) }),
     )
     .start();
 
@@ -118,17 +105,11 @@ export async function buildTitleScreen(
 
   const logo = new Node('Logo');
   logoGroup.addChild(logo);
-  const logoDesignY = RL.logoY - RL.safeTop * 0.12;
-  logo.setPosition(0, logoDesignY, 0);
+  const logoY = RL.logoY - RL.safeTop * 0.08;
   const logoSp = logo.addComponent(Sprite);
   const logoFrame = await loadSpriteFrame(MENU_LOGO_PATH);
-  if (logoFrame) {
-    applySpriteContain(logo, logoSp, logoFrame, RL.logoMaxW, RL.logoMaxH);
-    logo.setPosition(0, logoDesignY, 0);
-  } else {
-    logo.addComponent(UITransform).setContentSize(RL.logoMaxW, 120);
-    logoSp.sizeMode = Sprite.SizeMode.CUSTOM;
-  }
+  if (logoFrame) applySpriteContain(logo, logoSp, logoFrame, RL.logoMaxW, RL.logoMaxH);
+  logo.setPosition(0, logoY, 0);
 
   const menu = new Node('Menu');
   root.addChild(menu);
@@ -141,10 +122,9 @@ export async function buildTitleScreen(
     settings: callbacks.onSettings,
   };
 
-  const showSave = hasSave();
-  const visibleEntries = TITLE_ENTRIES.filter((e) => titleEntryVisible(e, showSave));
+  const visibleEntries = TITLE_ENTRIES.filter((e) => titleEntryVisible(e, hasSave()));
   const totalH =
-    visibleEntries.reduce((sum, e) => sum + STYLE_BY_ID[e.id].height, 0) +
+    visibleEntries.reduce((s, e) => s + STYLE_BY_ID[e.id].height, 0) +
     RL.gapPrimary * Math.max(0, visibleEntries.length - 1);
 
   let y = totalH / 2;
@@ -152,60 +132,50 @@ export async function buildTitleScreen(
   for (const entry of visibleEntries) {
     const geo = STYLE_BY_ID[entry.id];
     y -= geo.height / 2;
-    const btn = await createClassicButton(menu, {
-      name: `Btn_${entry.id}`,
-      label: entry.label,
-      style: geo.style,
-      width: geo.width,
-      height: geo.height,
-      y,
-      onClick: cbMap[entry.id],
-    });
-    buttons.push(btn);
+    buttons.push(
+      await createClassicButton(menu, {
+        name: `Btn_${entry.id}`,
+        label: entry.label,
+        style: geo.style,
+        width: geo.width,
+        height: geo.height,
+        y,
+        onClick: cbMap[entry.id],
+      }),
+    );
     y -= geo.height / 2 + RL.gapPrimary;
   }
 
-  const sub = makeLabel(root, 'SubBrand', MENU_BRAND_SUB, {
-    fontSize: 22,
-    color: new Color(200, 180, 140, 120),
-    y: 0,
-  });
-  applyDesignUiTransform(sub.node, 0, RL.footerY, vh);
-
   playMenuBgm(root);
 
-  const black = new Node('IntroBlack');
-  root.addChild(black);
-  matchVisibleSize(black, vis);
-  const blackSp = black.addComponent(Sprite);
-  blackSp.sizeMode = Sprite.SizeMode.CUSTOM;
-  const whiteFrame = await loadSpriteFrame(MENU_TEX.pixel);
-  if (whiteFrame) blackSp.spriteFrame = whiteFrame;
-  blackSp.color = new Color(0, 0, 0, 255);
-  const blackOp = black.addComponent(UIOpacity);
-  blackOp.opacity = 255;
+  const veil = new Node('IntroVeil');
+  root.addChild(veil);
+  matchVisibleSize(veil, vis);
+  const veilSp = veil.addComponent(Sprite);
+  veilSp.sizeMode = Sprite.SizeMode.CUSTOM;
+  const px = await loadSpriteFrame(MENU_TEX.pixel);
+  if (px) veilSp.spriteFrame = px;
+  veilSp.color = new Color(20, 18, 14, 255);
+  const veilOp = veil.addComponent(UIOpacity);
+  veilOp.opacity = 255;
 
-  const playIntro = opts?.forceIntro || !hasSeenIntro();
-  if (!playIntro) {
-    blackOp.opacity = 0;
-    black.active = false;
+  if (!(opts?.forceIntro || !hasSeenIntro())) {
+    veilOp.opacity = 0;
+    veil.active = false;
     return;
   }
 
   setOpacity(logoGroup, 0);
   setOpacity(menu, 0);
-  setOpacity(sub.node, 0);
   buttons.forEach((b) => setOpacity(b.node, 0));
 
-  await fadeOpacity(black, 255, 0, RL.introStepMs + 200);
-  if (!black.isValid) return;
-  black.active = false;
+  await fadeOpacity(veil, 255, 0, RL.introStepMs + 60);
+  if (!veil.isValid) return;
+  veil.active = false;
   await fadeOpacity(logoGroup, 0, 255, RL.introStepMs);
-  await fadeOpacity(menu, 0, 255, RL.introStepMs);
-  await fadeOpacity(sub.node, 0, 255, RL.introStepMs * 0.5);
+  await fadeOpacity(menu, 0, 255, RL.introStepMs * 0.65);
   for (const b of buttons) {
-    if (!b.node.isValid || !b.node.active) continue;
-    await fadeOpacity(b.node, 0, 255, RL.introStepMs * 0.55);
+    if (b.node.isValid) await fadeOpacity(b.node, 0, 255, RL.introStepMs * 0.3);
   }
   markIntroSeen();
 }

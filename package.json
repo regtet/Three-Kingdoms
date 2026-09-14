@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:menu-ui": "tsx scripts/generate-menu-textures.ts",
+    "gen:menu-btn-shuimo": "tsx scripts/apply-shuimo-btn.ts",
     "gen:menu-sfx": "tsx scripts/generate-menu-sfx.ts",
     "gen:menu-bgm": "tsx scripts/generate-menu-bgm.ts"
   },
