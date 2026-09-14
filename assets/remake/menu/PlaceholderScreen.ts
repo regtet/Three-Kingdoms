@@ -56,9 +56,9 @@ export async function buildPlaceholderScreen(
   await createClassicButton(backWrap, {
     name: 'BtnBack',
     label: '返回',
-    style: 'settings',
-    width: RL.btnSettingsW,
-    height: RL.btnSettingsH,
+    style: 'quaternary',
+    width: RL.btnQuaternaryW,
+    height: RL.btnQuaternaryH,
     y: 0,
     onClick: onBack,
   });

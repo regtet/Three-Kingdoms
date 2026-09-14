@@ -6,12 +6,20 @@ import {
   RL,
 } from '../shared/RemakeLayout';
 import {
+  MENU_BRAND_SUB,
+  TITLE_ENTRIES,
+  titleEntryVisible,
+  type TitleEntryId,
+} from '../shared/MenuSpec';
+import {
   createClassicButton,
   fadeOpacity,
   loadSpriteFrame,
   makeLabel,
+  playMenuBgm,
   setOpacity,
   type ClassicButton,
+  type MenuButtonStyle,
 } from '../shared/MenuChrome';
 import {
   applyDesignUiTransform,
@@ -28,6 +36,16 @@ export type TitleCallbacks = {
   onContinue: () => void;
   onGallery: () => void;
   onSettings: () => void;
+};
+
+const STYLE_BY_ID: Record<
+  TitleEntryId,
+  { style: MenuButtonStyle; width: number; height: number }
+> = {
+  newGame: { style: 'primary', width: RL.btnPrimaryW, height: RL.btnPrimaryH },
+  continue: { style: 'secondary', width: RL.btnSecondaryW, height: RL.btnSecondaryH },
+  gallery: { style: 'tertiary', width: RL.btnTertiaryW, height: RL.btnTertiaryH },
+  settings: { style: 'quaternary', width: RL.btnQuaternaryW, height: RL.btnQuaternaryH },
 };
 
 export async function buildTitleScreen(
@@ -55,26 +73,42 @@ export async function buildTitleScreen(
   } else {
     bg.addComponent(UITransform).setContentSize(vw, vh);
     bgSp.sizeMode = Sprite.SizeMode.CUSTOM;
-    bgSp.color = new Color(20, 24, 32, 255);
+    bgSp.color = new Color(12, 16, 28, 255);
   }
+
+  const vignette = new Node('Vignette');
+  root.addChild(vignette);
+  const vigSp = vignette.addComponent(Sprite);
+  const vigFrame = await loadSpriteFrame(MENU_TEX.vignette);
+  if (vigFrame) {
+    applySpriteCover(vignette, vigSp, vigFrame, vw, vh);
+  } else {
+    vignette.addComponent(UITransform).setContentSize(vw, vh);
+    vigSp.sizeMode = Sprite.SizeMode.CUSTOM;
+    const pixel = await loadSpriteFrame(MENU_TEX.pixel);
+    if (pixel) vigSp.spriteFrame = pixel;
+    vigSp.color = new Color(0, 0, 0, RL.vignetteOpacity);
+  }
+  const vigOp = vignette.getComponent(UIOpacity) ?? vignette.addComponent(UIOpacity);
+  vigOp.opacity = 255;
 
   const mist = new Node('Mist');
   root.addChild(mist);
   const mistSp = mist.addComponent(Sprite);
   const mistFrame = await loadSpriteFrame(MENU_TEX.mist);
   if (mistFrame) {
-    applySpriteCover(mist, mistSp, mistFrame, vw * 1.15, RL.mistH);
+    applySpriteCover(mist, mistSp, mistFrame, vw * 1.12, RL.mistH);
   } else {
-    mist.addComponent(UITransform).setContentSize(vw * 1.15, RL.mistH);
+    mist.addComponent(UITransform).setContentSize(vw * 1.12, RL.mistH);
     mistSp.sizeMode = Sprite.SizeMode.CUSTOM;
   }
   mist.setPosition(0, RL.mistY, 0);
-  mistSp.color = new Color(255, 255, 255, 80);
+  mistSp.color = new Color(255, 236, 200, 110);
   tween(mist)
     .repeatForever(
       tween(mist)
-        .to(18, { position: new Vec3(36, RL.mistY, 0) })
-        .to(18, { position: new Vec3(-36, RL.mistY, 0) }),
+        .to(20, { position: new Vec3(40, RL.mistY, 0) })
+        .to(20, { position: new Vec3(-40, RL.mistY, 0) }),
     )
     .start();
 
@@ -84,12 +118,11 @@ export async function buildTitleScreen(
 
   const logo = new Node('Logo');
   logoGroup.addChild(logo);
-  const logoDesignY = RL.logoY - RL.safeTop * 0.15;
+  const logoDesignY = RL.logoY - RL.safeTop * 0.12;
   logo.setPosition(0, logoDesignY, 0);
   const logoSp = logo.addComponent(Sprite);
   const logoFrame = await loadSpriteFrame(MENU_LOGO_PATH);
   if (logoFrame) {
-    // TRIMMED + 统一 scale，避免 CUSTOM+originalSize 拉伸
     applySpriteContain(logo, logoSp, logoFrame, RL.logoMaxW, RL.logoMaxH);
     logo.setPosition(0, logoDesignY, 0);
   } else {
@@ -101,82 +134,45 @@ export async function buildTitleScreen(
   root.addChild(menu);
   applyDesignUiTransform(menu, 0, RL.menuCenterY, vh);
 
-  const showContinue = hasSave();
-  const stack: Array<{
-    name: string;
-    label: string;
-    style: 'primary' | 'secondary' | 'scroll' | 'settings';
-    width: number;
-    height: number;
-    onClick: () => void;
-    visible: boolean;
-  }> = [
-    {
-      name: 'BtnNew',
-      label: '新游戏',
-      style: 'primary',
-      width: RL.btnNewW,
-      height: RL.btnNewH,
-      onClick: callbacks.onNewGame,
-      visible: true,
-    },
-    {
-      name: 'BtnContinue',
-      label: '继续游戏',
-      style: 'secondary',
-      width: RL.btnContinueW,
-      height: RL.btnContinueH,
-      onClick: callbacks.onContinue,
-      visible: showContinue,
-    },
-    {
-      name: 'BtnGallery',
-      label: '武将图鉴',
-      style: 'scroll',
-      width: RL.btnGalleryW,
-      height: RL.btnGalleryH,
-      onClick: callbacks.onGallery,
-      visible: true,
-    },
-    {
-      name: 'BtnSettings',
-      label: '设置',
-      style: 'settings',
-      width: RL.btnSettingsW,
-      height: RL.btnSettingsH,
-      onClick: callbacks.onSettings,
-      visible: true,
-    },
-  ];
+  const cbMap: Record<TitleEntryId, () => void> = {
+    newGame: callbacks.onNewGame,
+    continue: callbacks.onContinue,
+    gallery: callbacks.onGallery,
+    settings: callbacks.onSettings,
+  };
 
-  const visibleBtns = stack.filter((s) => s.visible);
+  const showSave = hasSave();
+  const visibleEntries = TITLE_ENTRIES.filter((e) => titleEntryVisible(e, showSave));
   const totalH =
-    visibleBtns.reduce((sum, s) => sum + s.height, 0) +
-    RL.gapPrimary * Math.max(0, visibleBtns.length - 1);
+    visibleEntries.reduce((sum, e) => sum + STYLE_BY_ID[e.id].height, 0) +
+    RL.gapPrimary * Math.max(0, visibleEntries.length - 1);
 
   let y = totalH / 2;
   const buttons: ClassicButton[] = [];
-  for (const s of visibleBtns) {
-    y -= s.height / 2;
+  for (const entry of visibleEntries) {
+    const geo = STYLE_BY_ID[entry.id];
+    y -= geo.height / 2;
     const btn = await createClassicButton(menu, {
-      name: s.name,
-      label: s.label,
-      style: s.style,
-      width: s.width,
-      height: s.height,
+      name: `Btn_${entry.id}`,
+      label: entry.label,
+      style: geo.style,
+      width: geo.width,
+      height: geo.height,
       y,
-      onClick: s.onClick,
+      onClick: cbMap[entry.id],
     });
     buttons.push(btn);
-    y -= s.height / 2 + RL.gapPrimary;
+    y -= geo.height / 2 + RL.gapPrimary;
   }
 
-  const sub = makeLabel(root, 'SubBrand', '三国志·天下争锋', {
+  const sub = makeLabel(root, 'SubBrand', MENU_BRAND_SUB, {
     fontSize: 22,
-    color: new Color(180, 170, 150, 140),
+    color: new Color(200, 180, 140, 120),
     y: 0,
   });
   applyDesignUiTransform(sub.node, 0, RL.footerY, vh);
+
+  playMenuBgm(root);
 
   const black = new Node('IntroBlack');
   root.addChild(black);

@@ -1,5 +1,5 @@
 /**
- * 生成主菜单古典材质按钮贴图（木牌 / 卷轴 / 铜牌），写入 assets/resources/ui/menu/
+ * 生成主菜单「匾额」按钮族：细铜框 + 暗漆面 + 角饰，偏三国志古典，避免厚金边塑料感。
  * 运行：npm run gen:menu-ui
  */
 import fs from 'fs';
@@ -12,87 +12,81 @@ function ensureDir(dir: string) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-/** 木牌：深色木纹 + 铜边 + 内槽 */
-function woodPlaqueSvg(w: number, h: number, opts: { primary: boolean }): string {
-  const stroke = opts.primary ? 10 : 7;
-  const copper = opts.primary ? '#d4b06a' : '#b8954e';
-  const copperDark = '#6a4e28';
-  const wood = opts.primary ? '#4a2f18' : '#3d2814';
-  const woodHi = opts.primary ? '#6b4424' : '#5a3a1e';
-  const r = opts.primary ? 16 : 12;
+function plaqueSvg(
+  w: number,
+  h: number,
+  tier: 'primary' | 'secondary' | 'tertiary' | 'quaternary',
+): string {
+  const r = tier === 'primary' ? 10 : 8;
+  const pad = tier === 'primary' ? 5 : 4;
+  const inner = pad + 3;
+  const stud = Math.max(3, Math.round(h * 0.07));
+  const barW = Math.max(10, Math.round(h * 0.14));
+
+  // 角饰：小菱形铜钉
+  const studs = [
+    [pad + 10, pad + 10],
+    [w - pad - 10, pad + 10],
+    [pad + 10, h - pad - 10],
+    [w - pad - 10, h - pad - 10],
+  ]
+    .map(
+      ([x, y]) =>
+        `<rect x="${x - stud / 2}" y="${y - stud / 2}" width="${stud}" height="${stud}" transform="rotate(45 ${x} ${y})" fill="url(#bronze)" stroke="#3a2810" stroke-width="0.8"/>`,
+    )
+    .join('');
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
   <defs>
-    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="${woodHi}"/>
-      <stop offset="35%" stop-color="${wood}"/>
-      <stop offset="70%" stop-color="#2e1c0e"/>
-      <stop offset="100%" stop-color="${woodHi}" stop-opacity="0.85"/>
+    <linearGradient id="bronze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d8c090"/>
+      <stop offset="45%" stop-color="#a88848"/>
+      <stop offset="100%" stop-color="#5a4020"/>
     </linearGradient>
-    <linearGradient id="copper" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f0d090"/>
-      <stop offset="45%" stop-color="${copper}"/>
-      <stop offset="100%" stop-color="${copperDark}"/>
+    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c9b078"/>
+      <stop offset="50%" stop-color="#8a6a38"/>
+      <stop offset="100%" stop-color="#4a3418"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2c1c10"/>
+      <stop offset="40%" stop-color="#1a100a"/>
+      <stop offset="100%" stop-color="#0e0906"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6a4a22"/>
+      <stop offset="50%" stop-color="#b8924a"/>
+      <stop offset="100%" stop-color="#6a4a22"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="35%" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0.35"/>
     </linearGradient>
     <filter id="grain">
-      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0.2  0 0 0 0 0.12  0 0 0 0 0.05  0 0 0 0.35 0"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0 0.04  0 0 0 0.28 0"/>
     </filter>
   </defs>
-  <rect width="${w}" height="${h}" rx="${r}" fill="url(#copper)"/>
-  <rect x="${stroke}" y="${stroke}" width="${w - stroke * 2}" height="${h - stroke * 2}" rx="${r - 4}" fill="url(#wood)"/>
-  <rect x="${stroke}" y="${stroke}" width="${w - stroke * 2}" height="${h - stroke * 2}" rx="${r - 4}" filter="url(#grain)" opacity="0.55"/>
-  <rect x="${stroke + 6}" y="${stroke + 6}" width="${w - stroke * 2 - 12}" height="${h - stroke * 2 - 12}" rx="${r - 8}"
-        fill="none" stroke="#1a1008" stroke-opacity="0.45" stroke-width="2"/>
-  <rect x="${stroke + 3}" y="${stroke + 3}" width="${w - stroke * 2 - 6}" height="${Math.max(8, h * 0.18)}" rx="4"
-        fill="#ffffff" fill-opacity="0.07"/>
-</svg>`;
-}
 
-/** 卷轴：两端轴 + 旧纸 */
-function scrollSvg(w: number, h: number): string {
-  const axle = 28;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-  <defs>
-    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#efe0c0"/>
-      <stop offset="50%" stop-color="#e2cda8"/>
-      <stop offset="100%" stop-color="#d2b78c"/>
-    </linearGradient>
-    <linearGradient id="axle" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#5a3a1e"/>
-      <stop offset="50%" stop-color="#8a6238"/>
-      <stop offset="100%" stop-color="#5a3a1e"/>
-    </linearGradient>
-    <filter id="grain">
-      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0.25  0 0 0 0 0.18  0 0 0 0 0.08  0 0 0 0.22 0"/>
-    </filter>
-  </defs>
-  <rect x="0" y="4" width="${axle}" height="${h - 8}" rx="6" fill="url(#axle)"/>
-  <rect x="${w - axle}" y="4" width="${axle}" height="${h - 8}" rx="6" fill="url(#axle)"/>
-  <rect x="${axle - 4}" y="10" width="${w - axle * 2 + 8}" height="${h - 20}" rx="4" fill="url(#paper)" stroke="#8a6a3e" stroke-width="3"/>
-  <rect x="${axle - 4}" y="10" width="${w - axle * 2 + 8}" height="${h - 20}" rx="4" filter="url(#grain)" opacity="0.5"/>
-  <line x1="${axle + 20}" y1="${h / 2}" x2="${w - axle - 20}" y2="${h / 2}" stroke="#b89a6a" stroke-opacity="0.35" stroke-width="1"/>
-</svg>`;
-}
+  <!-- 外框：细铜 -->
+  <rect width="${w}" height="${h}" rx="${r}" fill="url(#frame)"/>
+  <rect x="${pad}" y="${pad}" width="${w - pad * 2}" height="${h - pad * 2}" rx="${Math.max(2, r - 3)}" fill="#120c08"/>
 
-/** 小铜牌 */
-function bronzeSvg(w: number, h: number): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-  <defs>
-    <linearGradient id="br" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#a88848"/>
-      <stop offset="40%" stop-color="#7a5c2e"/>
-      <stop offset="100%" stop-color="#4a3618"/>
-    </linearGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#e8c878"/>
-      <stop offset="100%" stop-color="#8a6a30"/>
-    </linearGradient>
-  </defs>
-  <rect width="${w}" height="${h}" rx="10" fill="url(#rim)"/>
-  <rect x="5" y="5" width="${w - 10}" height="${h - 10}" rx="7" fill="url(#br)"/>
-  <rect x="8" y="8" width="${w - 16}" height="${h * 0.22}" rx="3" fill="#fff" fill-opacity="0.12"/>
+  <!-- 漆面 -->
+  <rect x="${inner}" y="${inner}" width="${w - inner * 2}" height="${h - inner * 2}" rx="${Math.max(2, r - 5)}" fill="url(#face)"/>
+  <rect x="${inner}" y="${inner}" width="${w - inner * 2}" height="${h - inner * 2}" rx="${Math.max(2, r - 5)}" filter="url(#grain)" opacity="0.55"/>
+  <rect x="${inner}" y="${inner}" width="${w - inner * 2}" height="${h - inner * 2}" rx="${Math.max(2, r - 5)}" fill="url(#sheen)"/>
+
+  <!-- 左右铜柱 -->
+  <rect x="${inner + 4}" y="${inner + 8}" width="${barW}" height="${h - inner * 2 - 16}" rx="2" fill="url(#bar)" opacity="0.85"/>
+  <rect x="${w - inner - 4 - barW}" y="${inner + 8}" width="${barW}" height="${h - inner * 2 - 16}" rx="2" fill="url(#bar)" opacity="0.85"/>
+
+  <!-- 内细线 -->
+  <rect x="${inner + barW + 10}" y="${inner + 10}" width="${w - inner * 2 - barW * 2 - 20}" height="${h - inner * 2 - 20}"
+        rx="2" fill="none" stroke="#c9a86a" stroke-opacity="0.28" stroke-width="1.2"/>
+
+  ${studs}
 </svg>`;
 }
 
@@ -105,29 +99,47 @@ async function writePng(name: string, svg: string) {
 async function main() {
   ensureDir(OUT);
 
-  await writePng('btn_wood_primary.png', woodPlaqueSvg(720, 140, { primary: true }));
-  await writePng('btn_wood_secondary.png', woodPlaqueSvg(640, 112, { primary: false }));
-  await writePng('btn_scroll.png', scrollSvg(600, 108));
-  await writePng('btn_bronze_small.png', bronzeSvg(420, 88));
+  // 略扁、更匾额：高度压一点
+  await writePng('btn_wood_primary.png', plaqueSvg(640, 112, 'primary'));
+  await writePng('btn_wood_secondary.png', plaqueSvg(580, 96, 'secondary'));
+  await writePng('btn_wood_tertiary.png', plaqueSvg(520, 88, 'tertiary'));
+  await writePng('btn_wood_quaternary.png', plaqueSvg(440, 80, 'quaternary'));
+  await writePng('btn_scroll.png', plaqueSvg(520, 88, 'tertiary'));
+  await writePng('btn_bronze_small.png', plaqueSvg(440, 80, 'quaternary'));
 
   await writePng(
     'btn_selected_rim.png',
-    `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="140">
-      <rect x="4" y="4" width="712" height="132" rx="16" fill="none" stroke="#e8c878" stroke-width="8" stroke-opacity="0.95"/>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="660" height="120">
+      <rect x="3" y="3" width="654" height="114" rx="10" fill="none" stroke="#e8c878" stroke-width="2.5" stroke-opacity="0.85"/>
+      <rect x="8" y="8" width="644" height="104" rx="7" fill="none" stroke="#a07030" stroke-width="1" stroke-opacity="0.4"/>
     </svg>`,
   );
 
   await writePng(
     'mist_band.png',
-    `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="480">
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="520">
       <defs>
         <linearGradient id="m" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#dfe8f0" stop-opacity="0"/>
-          <stop offset="40%" stop-color="#cfd8e0" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="#dfe8f0" stop-opacity="0"/>
+          <stop offset="0%" stop-color="#d8c8a8" stop-opacity="0"/>
+          <stop offset="40%" stop-color="#c4b090" stop-opacity="0.1"/>
+          <stop offset="100%" stop-color="#d8c8a8" stop-opacity="0"/>
         </linearGradient>
       </defs>
-      <rect width="1080" height="480" fill="url(#m)"/>
+      <rect width="1080" height="520" fill="url(#m)"/>
+    </svg>`,
+  );
+
+  await writePng(
+    'vignette.png',
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920">
+      <defs>
+        <radialGradient id="v" cx="50%" cy="40%" r="74%">
+          <stop offset="35%" stop-color="#000" stop-opacity="0"/>
+          <stop offset="75%" stop-color="#000" stop-opacity="0.42"/>
+          <stop offset="100%" stop-color="#000" stop-opacity="0.72"/>
+        </radialGradient>
+      </defs>
+      <rect width="1080" height="1920" fill="url(#v)"/>
     </svg>`,
   );
 
@@ -149,7 +161,6 @@ async function main() {
   })
     .png()
     .toFile(path.join(OUT, 'pixel_white.png'));
-  console.log('wrote pixel_white.png');
   console.log('menu textures done');
 }
 

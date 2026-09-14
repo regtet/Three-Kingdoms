@@ -8,26 +8,33 @@ import {
 } from 'cc';
 import { REMAKE_BUILD_TAG } from './version';
 import { buildTitleScreen } from './menu/TitleScreen';
-import { buildPlaceholderScreen } from './menu/PlaceholderScreen';
+import { buildScenarioScreen } from './menu/ScenarioScreen';
+import { buildRulerScreen } from './menu/RulerScreen';
+import { buildContinueScreen } from './menu/ContinueScreen';
+import { buildGalleryScreen } from './menu/GalleryScreen';
+import { buildSettingsScreen } from './menu/SettingsScreen';
+import {
+  buildPlayStubScreen,
+  linesForLoad,
+  linesForNewGame,
+} from './menu/PlayStubScreen';
 import { fadeOpacity, setOpacity } from './shared/MenuChrome';
 import { debugAdaptInfo, getVisibleDesignSize, matchVisibleSize } from './shared/ScreenAdapt';
 import { RL } from './shared/RemakeLayout';
+import { type MenuLayerId } from './shared/MenuSpec';
+import { addSave, listSaves, type SaveSlot } from './shared/SaveStore';
+import type { ScenarioDef } from './shared/MenuCatalog';
 
 const { ccclass } = _decorator;
 
-type LayerId = 'title' | 'scenario' | 'continue' | 'gallery' | 'settings';
-
-/**
- * UI 根：跟 Canvas 同尺寸；等一帧再布局（等 Canvas Widget 对齐完成）。
- */
 @ccclass('RemakeRoot')
 export class RemakeRoot extends Component {
   private shell!: Node;
-  private layers: Partial<Record<LayerId, Node>> = {};
-  private current: LayerId | null = null;
+  private layers: Partial<Record<MenuLayerId, Node>> = {};
+  private current: MenuLayerId | null = null;
   private transitioning = false;
-  private lastPlaceholderTitle = '';
   private booted = false;
+  private selectedScenario: ScenarioDef | null = null;
 
   onLoad() {
     console.log(`[RemakeRoot] ${REMAKE_BUILD_TAG}`);
@@ -40,7 +47,15 @@ export class RemakeRoot extends Component {
     this.node.addChild(this.shell);
     this.shell.addComponent(UITransform).setAnchorPoint(0.5, 0.5);
 
-    const ids: LayerId[] = ['title', 'scenario', 'continue', 'gallery', 'settings'];
+    const ids: MenuLayerId[] = [
+      'title',
+      'scenario',
+      'ruler',
+      'continue',
+      'gallery',
+      'settings',
+      'play',
+    ];
     for (const id of ids) {
       const layer = new Node(`Layer_${id}`);
       this.shell.addChild(layer);
@@ -51,7 +66,6 @@ export class RemakeRoot extends Component {
     }
 
     view.on('canvas-resize', this.onResize, this);
-    // 等 Canvas / Widget / 设计分辨率生效后再建主菜单
     this.scheduleOnce(() => void this.boot(true), 0);
   }
 
@@ -68,7 +82,7 @@ export class RemakeRoot extends Component {
     const vis = getVisibleDesignSize();
     matchVisibleSize(this.node, vis);
     matchVisibleSize(this.shell, vis);
-    for (const id of Object.keys(this.layers) as LayerId[]) {
+    for (const id of Object.keys(this.layers) as MenuLayerId[]) {
       const layer = this.layers[id];
       if (layer) matchVisibleSize(layer, vis);
     }
@@ -84,35 +98,44 @@ export class RemakeRoot extends Component {
   private async rebuildCurrent() {
     if (!this.current) return;
     this.syncLayerSizes();
-    if (this.current === 'title') {
-      await this.openTitle(false);
-      return;
+    switch (this.current) {
+      case 'title':
+        await this.openTitle(false);
+        break;
+      case 'scenario':
+        await this.openScenario();
+        break;
+      case 'ruler':
+        if (this.selectedScenario) await this.openRuler(this.selectedScenario.id);
+        break;
+      case 'continue':
+        await this.openContinue();
+        break;
+      case 'gallery':
+        await this.openGallery();
+        break;
+      case 'settings':
+        await this.openSettings();
+        break;
+      default:
+        break;
     }
-    const titles: Record<Exclude<LayerId, 'title'>, string> = {
-      scenario: '剧本选择（占位）',
-      continue: '继续游戏（占位）',
-      gallery: '武将图鉴（占位）',
-      settings: '设置（占位）',
+  }
+
+  private titleCallbacks() {
+    return {
+      onNewGame: () => void this.openScenario(),
+      onContinue: () => void this.openContinue(),
+      onGallery: () => void this.openGallery(),
+      onSettings: () => void this.openSettings(),
     };
-    const id = this.current;
-    await buildPlaceholderScreen(this.layers[id]!, this.lastPlaceholderTitle || titles[id], () => {
-      void this.backToTitle();
-    });
-    this.layers[id]!.active = true;
   }
 
   private async openTitle(first: boolean) {
     const layer = this.layers.title!;
-    await buildTitleScreen(
-      layer,
-      {
-        onNewGame: () => void this.goPlaceholder('scenario', '剧本选择（占位）'),
-        onContinue: () => void this.goPlaceholder('continue', '继续游戏（占位）'),
-        onGallery: () => void this.goPlaceholder('gallery', '武将图鉴（占位）'),
-        onSettings: () => void this.goPlaceholder('settings', '设置（占位）'),
-      },
-      { forceIntro: first ? undefined : false },
-    );
+    await buildTitleScreen(layer, this.titleCallbacks(), {
+      forceIntro: first ? undefined : false,
+    });
     if (first) {
       layer.active = true;
       this.current = 'title';
@@ -121,33 +144,88 @@ export class RemakeRoot extends Component {
     }
   }
 
-  private async goPlaceholder(id: Exclude<LayerId, 'title'>, title: string) {
+  private async openScenario() {
     if (this.transitioning) return;
-    this.lastPlaceholderTitle = title;
-    const layer = this.layers[id]!;
-    await buildPlaceholderScreen(layer, title, () => {
-      void this.backToTitle();
+    await buildScenarioScreen(this.layers.scenario!, {
+      onPick: (sc) => {
+        this.selectedScenario = sc;
+        void this.openRuler(sc.id);
+      },
+      onBack: () => void this.backToTitle(),
     });
-    await this.transitionTo(id);
+    await this.transitionTo('scenario');
+  }
+
+  private async openRuler(scenarioId: string) {
+    if (this.transitioning) return;
+    await buildRulerScreen(this.layers.ruler!, {
+      scenarioId,
+      onConfirm: (ruler) => {
+        const sc = this.selectedScenario;
+        if (!sc) return;
+        addSave({
+          scenarioId: sc.id,
+          scenarioName: sc.name,
+          rulerName: ruler.name,
+          factionId: ruler.factionId,
+          year: sc.year,
+          month: sc.month,
+        });
+        void this.openPlay('开局成功', linesForNewGame(sc, ruler));
+      },
+      onBack: () => void this.openScenario(),
+    });
+    await this.transitionTo('ruler');
+  }
+
+  private async openContinue() {
+    if (this.transitioning) return;
+    if (listSaves().length === 0) {
+      await this.backToTitle();
+      return;
+    }
+    await buildContinueScreen(this.layers.continue!, {
+      onLoad: (slot: SaveSlot) => {
+        void this.openPlay('读档成功', linesForLoad(slot));
+      },
+      onBack: () => void this.backToTitle(),
+      onEmpty: () => {
+        void this.backToTitle();
+      },
+    });
+    await this.transitionTo('continue');
+  }
+
+  private async openGallery() {
+    if (this.transitioning) return;
+    await buildGalleryScreen(this.layers.gallery!, () => void this.backToTitle());
+    await this.transitionTo('gallery');
+  }
+
+  private async openSettings() {
+    if (this.transitioning) return;
+    await buildSettingsScreen(this.layers.settings!, () => void this.backToTitle());
+    await this.transitionTo('settings');
+  }
+
+  private async openPlay(title: string, lines: string[]) {
+    if (this.transitioning) return;
+    await buildPlayStubScreen(this.layers.play!, {
+      title,
+      lines,
+      onBack: () => void this.backToTitle(),
+    });
+    await this.transitionTo('play');
   }
 
   private async backToTitle() {
     if (this.transitioning) return;
     const layer = this.layers.title!;
-    await buildTitleScreen(
-      layer,
-      {
-        onNewGame: () => void this.goPlaceholder('scenario', '剧本选择（占位）'),
-        onContinue: () => void this.goPlaceholder('continue', '继续游戏（占位）'),
-        onGallery: () => void this.goPlaceholder('gallery', '武将图鉴（占位）'),
-        onSettings: () => void this.goPlaceholder('settings', '设置（占位）'),
-      },
-      { forceIntro: false },
-    );
+    await buildTitleScreen(layer, this.titleCallbacks(), { forceIntro: false });
     await this.transitionTo('title');
   }
 
-  private async transitionTo(next: LayerId) {
+  private async transitionTo(next: MenuLayerId) {
     if (this.current === next) {
       this.layers[next]!.active = true;
       return;

@@ -14,16 +14,24 @@ import {
   Vec3,
   tween,
 } from 'cc';
-import { MENU_CLICK_SFX, MENU_TEX, RL } from './RemakeLayout';
+import { MENU_BGM_PATH, MENU_BGM_VOLUME, MENU_CLICK_SFX, MENU_TEX, RL } from './RemakeLayout';
+import { loadSettings } from './SettingsPrefs';
 import { setVisibleLayerSize } from './ScreenAdapt';
 
-export type MenuButtonStyle = 'primary' | 'secondary' | 'scroll' | 'settings';
+export type MenuButtonStyle = 'primary' | 'secondary' | 'tertiary' | 'quaternary';
 
 const TEX_BY_STYLE: Record<MenuButtonStyle, string> = {
   primary: MENU_TEX.woodPrimary,
   secondary: MENU_TEX.woodSecondary,
-  scroll: MENU_TEX.scroll,
-  settings: MENU_TEX.bronze,
+  tertiary: MENU_TEX.woodTertiary,
+  quaternary: MENU_TEX.woodQuaternary,
+};
+
+const FONT_BY_STYLE: Record<MenuButtonStyle, number> = {
+  primary: 44,
+  secondary: 38,
+  tertiary: 34,
+  quaternary: 30,
 };
 
 function loadFrame(path: string): Promise<SpriteFrame | null> {
@@ -119,7 +127,7 @@ export async function createClassicButton(
 
   const rim = new Node('Rim');
   node.addChild(rim);
-  rim.addComponent(UITransform).setContentSize(opts.width + 8, opts.height + 8);
+  rim.addComponent(UITransform).setContentSize(opts.width + 10, opts.height + 10);
   const rimSp = rim.addComponent(Sprite);
   rimSp.sizeMode = Sprite.SizeMode.CUSTOM;
   const rimFrame = await loadFrame(MENU_TEX.rim);
@@ -127,13 +135,9 @@ export async function createClassicButton(
   const rimOp = rim.addComponent(UIOpacity);
   rimOp.opacity = 0;
 
-  const labelColor =
-    opts.labelColor ??
-    (opts.style === 'scroll'
-      ? new Color(62, 40, 22, 255)
-      : new Color(245, 230, 190, 255));
+  const labelColor = opts.labelColor ?? new Color(236, 214, 168, 255);
   makeLabel(node, 'Label', opts.label, {
-    fontSize: opts.style === 'primary' ? 44 : opts.style === 'settings' ? 30 : 36,
+    fontSize: FONT_BY_STYLE[opts.style],
     color: labelColor,
     y: 0,
     bold: opts.style === 'primary',
@@ -158,7 +162,7 @@ export async function createClassicButton(
   });
 
   node.on(Node.EventType.MOUSE_ENTER, () => {
-    rimOp.opacity = 200;
+    rimOp.opacity = 210;
   });
   node.on(Node.EventType.MOUSE_LEAVE, () => {
     rimOp.opacity = 0;
@@ -167,35 +171,100 @@ export async function createClassicButton(
   return {
     node,
     setSelected: (on: boolean) => {
-      rimOp.opacity = on ? 220 : 0;
+      rimOp.opacity = on ? 230 : 0;
       sp.color = on ? new Color(255, 245, 220, 255) : Color.WHITE;
     },
   };
 }
 
 let cachedClick: AudioClip | null = null;
+let cachedBgm: AudioClip | null = null;
 let audioHost: AudioSource | null = null;
+let bgmHost: AudioSource | null = null;
+
+function ensureSfxHost(host: Node): AudioSource {
+  if (!audioHost || !audioHost.node?.isValid) {
+    const n = new Node('MenuSfx');
+    host.scene?.addChild(n) ?? host.addChild(n);
+    audioHost = n.addComponent(AudioSource);
+    audioHost.playOnAwake = false;
+  }
+  return audioHost;
+}
+
+function ensureBgmHost(host: Node): AudioSource {
+  if (!bgmHost || !bgmHost.node?.isValid) {
+    const n = new Node('MenuBgm');
+    host.scene?.addChild(n) ?? host.addChild(n);
+    bgmHost = n.addComponent(AudioSource);
+    bgmHost.playOnAwake = false;
+    bgmHost.loop = true;
+  }
+  return bgmHost;
+}
 
 export function playClickSfx(host: Node): void {
-  const ensure = () => {
-    if (!audioHost) {
-      const n = new Node('MenuAudio');
-      host.scene?.addChild(n) ?? host.addChild(n);
-      audioHost = n.addComponent(AudioSource);
-      audioHost.playOnAwake = false;
-    }
-    return audioHost;
-  };
-  const src = ensure();
+  const prefs = loadSettings();
+  if (!prefs.sfxEnabled) return;
+  const src = ensureSfxHost(host);
+  const vol = prefs.sfxVolume;
   if (cachedClick) {
-    src.playOneShot(cachedClick, 1);
+    src.playOneShot(cachedClick, vol);
     return;
   }
   resources.load(MENU_CLICK_SFX, AudioClip, (err, clip) => {
     if (err || !clip) return;
     cachedClick = clip;
-    src.playOneShot(clip, 1);
+    src.playOneShot(clip, vol);
   });
+}
+
+export function playMenuBgm(host: Node): void {
+  const prefs = loadSettings();
+  if (!prefs.musicEnabled) {
+    stopMenuBgm();
+    return;
+  }
+  const src = ensureBgmHost(host);
+  const vol = Math.min(prefs.musicVolume, MENU_BGM_VOLUME);
+  const start = (clip: AudioClip) => {
+    if (!src.node?.isValid) return;
+    src.clip = clip;
+    src.volume = vol;
+    src.loop = true;
+    if (!src.playing) src.play();
+    else src.volume = vol;
+  };
+  if (cachedBgm) {
+    start(cachedBgm);
+    return;
+  }
+  resources.load(MENU_BGM_PATH, AudioClip, (err, clip) => {
+    if (err || !clip) return;
+    cachedBgm = clip;
+    start(clip);
+  });
+}
+
+export function applyMenuBgmVolume(): void {
+  if (!bgmHost || !bgmHost.node?.isValid) return;
+  const prefs = loadSettings();
+  if (!prefs.musicEnabled) {
+    stopMenuBgm();
+    return;
+  }
+  bgmHost.volume = Math.min(prefs.musicVolume, MENU_BGM_VOLUME);
+  if (!bgmHost.playing && cachedBgm) {
+    bgmHost.clip = cachedBgm;
+    bgmHost.loop = true;
+    bgmHost.play();
+  }
+}
+
+export function stopMenuBgm(): void {
+  if (bgmHost && bgmHost.node?.isValid && bgmHost.playing) {
+    bgmHost.stop();
+  }
 }
 
 export function fadeOpacity(node: Node, from: number, to: number, ms: number): Promise<void> {

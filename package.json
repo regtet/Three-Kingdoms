@@ -10,7 +10,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen:menu-ui": "tsx scripts/generate-menu-textures.ts"
+    "gen:menu-ui": "tsx scripts/generate-menu-textures.ts",
+    "gen:menu-sfx": "tsx scripts/generate-menu-sfx.ts",
+    "gen:menu-bgm": "tsx scripts/generate-menu-bgm.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
