@@ -90,7 +90,7 @@ export async function buildTitleScreen(
   const mistFrame = await loadSpriteFrame(MENU_TEX.mist);
   if (mistFrame) applySpriteCover(mist, mistSp, mistFrame, vw * 1.06, RL.mistH);
   mist.setPosition(0, RL.mistY, 0);
-  mistSp.color = new Color(255, 255, 255, 90);
+  mistSp.color = new Color(255, 255, 255, 55);
   tween(mist)
     .repeatForever(
       tween(mist)

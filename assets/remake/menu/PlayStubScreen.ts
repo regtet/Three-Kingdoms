@@ -1,4 +1,4 @@
-import { Color, Node } from 'cc';
+import { Node } from 'cc';
 import { createClassicButton } from '../shared/MenuChrome';
 import { createMenuShell, makeRowLabel } from '../shared/MenuShell';
 import { RL } from '../shared/RemakeLayout';
@@ -19,13 +19,11 @@ export async function buildPlayStubScreen(
   for (const line of opts.lines) {
     makeRowLabel(shell.body, `L_${y}`, line, y, {
       fontSize: 28,
-      color: new Color(42, 36, 28, 255),
     });
     y -= 60;
   }
   makeRowLabel(shell.body, 'Hint', '战略地图将在下一阶段接入', -80, {
     fontSize: 24,
-    color: new Color(122, 112, 96, 220),
   });
   await createClassicButton(shell.body, {
     name: 'BtnOk',

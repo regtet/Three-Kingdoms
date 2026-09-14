@@ -1,11 +1,14 @@
 import { Color, Node } from 'cc';
 import {
   applyMenuBgmVolume,
-  createClassicButton,
   makeLabel,
   playMenuBgm,
 } from '../shared/MenuChrome';
-import { createMenuShell, makeRowLabel } from '../shared/MenuShell';
+import {
+  createInkOption,
+  createMenuShell,
+  makeRowLabel,
+} from '../shared/MenuShell';
 import { loadSettings, saveSettings, type SettingsState } from '../shared/SettingsPrefs';
 
 function volLabel(v: number): string {
@@ -16,15 +19,13 @@ export async function buildSettingsScreen(layer: Node, onBack: () => void): Prom
   const shell = await createMenuShell(layer, '设置', onBack);
   let prefs: SettingsState = loadSettings();
 
-  const musicLine = makeRowLabel(shell.body, 'MusicLine', '', 420, { fontSize: 30 });
-  const sfxLine = makeRowLabel(shell.body, 'SfxLine', '', 120, { fontSize: 30 });
-  makeRowLabel(shell.body, 'Display', '画面：竖屏 1080×1920（预留）', -140, {
-    fontSize: 28,
-    color: new Color(28, 24, 18, 255),
+  const musicLine = makeRowLabel(shell.body, 'MusicLine', '', 400, { fontSize: 30 });
+  const sfxLine = makeRowLabel(shell.body, 'SfxLine', '', 80, { fontSize: 30 });
+  makeRowLabel(shell.body, 'Display', '画面：竖屏 1080×1920（预留）', -200, {
+    fontSize: 26,
   });
-  makeRowLabel(shell.body, 'Lang', '语言：简体中文', -220, {
-    fontSize: 28,
-    color: new Color(28, 24, 18, 255),
+  makeRowLabel(shell.body, 'Lang', '语言：简体中文', -270, {
+    fontSize: 26,
   });
 
   const refresh = () => {
@@ -40,91 +41,85 @@ export async function buildSettingsScreen(layer: Node, onBack: () => void): Prom
     refresh();
   };
 
-  await createClassicButton(shell.body, {
+  await createInkOption(shell.body, {
     name: 'MusicToggle',
-    label: '音乐开/关',
-    style: 'quaternary',
-    width: 280,
+    label: '音乐 开/关',
+    y: 300,
+    width: 560,
     height: 72,
-    y: 340,
     onClick: () => {
       prefs = { ...prefs, musicEnabled: !prefs.musicEnabled };
       persist();
     },
   });
 
-  await createClassicButton(shell.body, {
+  await createInkOption(shell.body, {
     name: 'MusicDown',
-    label: '音量−',
-    style: 'quaternary',
-    width: 200,
-    height: 72,
-    y: 250,
+    label: '音乐音量 −',
+    y: 210,
+    width: 280,
+    height: 68,
     onClick: () => {
       prefs = { ...prefs, musicVolume: Math.max(0, +(prefs.musicVolume - 0.1).toFixed(2)) };
       persist();
     },
   });
-  shell.body.getChildByName('MusicDown')?.setPosition(-140, 250, 0);
+  shell.body.getChildByName('MusicDown')?.setPosition(-160, 210, 0);
 
-  await createClassicButton(shell.body, {
+  await createInkOption(shell.body, {
     name: 'MusicUp',
-    label: '音量+',
-    style: 'quaternary',
-    width: 200,
-    height: 72,
-    y: 250,
+    label: '音乐音量 +',
+    y: 210,
+    width: 280,
+    height: 68,
     onClick: () => {
       prefs = { ...prefs, musicVolume: Math.min(1, +(prefs.musicVolume + 0.1).toFixed(2)) };
       persist();
     },
   });
-  shell.body.getChildByName('MusicUp')?.setPosition(140, 250, 0);
+  shell.body.getChildByName('MusicUp')?.setPosition(160, 210, 0);
 
-  await createClassicButton(shell.body, {
+  await createInkOption(shell.body, {
     name: 'SfxToggle',
-    label: '音效开/关',
-    style: 'quaternary',
-    width: 280,
+    label: '音效 开/关',
+    y: -20,
+    width: 560,
     height: 72,
-    y: 40,
     onClick: () => {
       prefs = { ...prefs, sfxEnabled: !prefs.sfxEnabled };
       persist();
     },
   });
 
-  await createClassicButton(shell.body, {
+  await createInkOption(shell.body, {
     name: 'SfxDown',
-    label: '音量−',
-    style: 'quaternary',
-    width: 200,
-    height: 72,
-    y: -50,
+    label: '音效音量 −',
+    y: -110,
+    width: 280,
+    height: 68,
     onClick: () => {
       prefs = { ...prefs, sfxVolume: Math.max(0, +(prefs.sfxVolume - 0.1).toFixed(2)) };
       persist();
     },
   });
-  shell.body.getChildByName('SfxDown')?.setPosition(-140, -50, 0);
+  shell.body.getChildByName('SfxDown')?.setPosition(-160, -110, 0);
 
-  await createClassicButton(shell.body, {
+  await createInkOption(shell.body, {
     name: 'SfxUp',
-    label: '音量+',
-    style: 'quaternary',
-    width: 200,
-    height: 72,
-    y: -50,
+    label: '音效音量 +',
+    y: -110,
+    width: 280,
+    height: 68,
     onClick: () => {
       prefs = { ...prefs, sfxVolume: Math.min(1, +(prefs.sfxVolume + 0.1).toFixed(2)) };
       persist();
     },
   });
-  shell.body.getChildByName('SfxUp')?.setPosition(140, -50, 0);
+  shell.body.getChildByName('SfxUp')?.setPosition(160, -110, 0);
 
-  makeLabel(shell.body, 'Hint', '画面与语言项将在后续版本开放', {
+  makeLabel(shell.body, 'Hint', '画面与语言项后续开放', {
     fontSize: 22,
-    color: new Color(70, 60, 48, 220),
-    y: -300,
+    color: new Color(210, 198, 170, 180),
+    y: -340,
   });
 }

@@ -29,8 +29,8 @@ export const RL = {
   btnQuaternaryH: 96,
   btnFontSize: 36,
 
-  mistY: 40,
-  mistH: 400,
+  mistY: 20,
+  mistH: 320,
 
   pressScale: 0.98,
   pressMs: 65,
@@ -44,8 +44,8 @@ export const MENU_CLICK_SFX = 'audio/ui_tap';
 export const MENU_BGM_PATH = 'audio/menu_bgm';
 export const MENU_BGM_VOLUME = 0.55;
 
-/** 按钮字：浓墨（适配水墨浅宣纸匾面） */
-export const BTN_LABEL_COLOR = { r: 22, g: 18, b: 14, a: 255 } as const;
+/** 按钮字：亮金（深墨水墨匾） */
+export const BTN_LABEL_COLOR = { r: 242, g: 214, b: 120, a: 255 } as const;
 /** 二级顶栏字：亮金（深墨匾上） */
 export const BANNER_LABEL_COLOR = { r: 242, g: 210, b: 110, a: 255 } as const;
 /** 正文：浓墨（宣纸底上必可读） */

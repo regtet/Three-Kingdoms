@@ -1,11 +1,10 @@
 /**
- * 二级页展现（与标题屏刻意区分）：
- * 水墨底 → 半透明墨罩 → 顶栏墨匾（亮金字标题）→ 中央宣纸正文卡（浓墨字）→ 底栏返回。
+ * 二级页：透出水墨底，去掉大白卡。
+ * 标题浮于画面；列表用轻量行条，主操作才用墨匾按钮。
  */
-import { Color, Node, Sprite, UITransform } from 'cc';
+import { Color, EventTouch, Node, Sprite, UIOpacity, UITransform } from 'cc';
 import {
   BANNER_LABEL_COLOR,
-  BODY_TEXT_COLOR,
   MENU_BG_PATH,
   MENU_TEX,
   RL,
@@ -14,11 +13,11 @@ import {
   createClassicButton,
   loadSpriteFrame,
   makeLabel,
+  playClickSfx,
   setOpacity,
 } from './MenuChrome';
 import {
   applyDesignUiTransform,
-  applySpriteContain,
   applySpriteCover,
   getVisibleDesignSize,
   matchVisibleSize,
@@ -30,6 +29,10 @@ export type MenuShell = {
   body: Node;
   vis: { width: number; height: number };
 };
+
+/** 浮于水墨上的浅色字 */
+export const INK_UI_TEXT = { r: 245, g: 236, b: 214, a: 255 } as const;
+export const INK_UI_MUTED = { r: 210, g: 198, b: 170, a: 230 } as const;
 
 export async function createMenuShell(
   layer: Node,
@@ -47,9 +50,11 @@ export async function createMenuShell(
   root.addChild(bg);
   const bgSp = bg.addComponent(Sprite);
   const bgFrame = await loadSpriteFrame(MENU_BG_PATH);
-  if (bgFrame) applySpriteCover(bg, bgSp, bgFrame, vis.width, vis.height);
+  if (bgFrame) {
+    applySpriteCover(bg, bgSp, bgFrame, vis.width, vis.height);
+  }
 
-  // 墨罩：压暗背景，突出卡片（不是整屏宣纸）
+  // 轻墨罩：只压对比，不盖死山水、不要大白卡
   const wash = new Node('InkWash');
   root.addChild(wash);
   matchVisibleSize(wash, vis);
@@ -57,39 +62,26 @@ export async function createMenuShell(
   washSp.sizeMode = Sprite.SizeMode.CUSTOM;
   const ink = await loadSpriteFrame(MENU_TEX.inkWash);
   if (ink) washSp.spriteFrame = ink;
-  washSp.color = new Color(20, 18, 14, 165);
+  washSp.color = new Color(12, 10, 8, 110);
 
-  // 顶栏墨匾
-  const bannerHost = new Node('BannerHost');
-  root.addChild(bannerHost);
-  applyDesignUiTransform(bannerHost, 0, 760 - RL.safeTop, vis.height);
-  const banner = new Node('Banner');
-  bannerHost.addChild(banner);
-  const bannerSp = banner.addComponent(Sprite);
-  const bannerFrame = await loadSpriteFrame(MENU_TEX.titleBanner);
-  if (bannerFrame) applySpriteContain(banner, bannerSp, bannerFrame, 900, 110);
-
-  const titleLabel = makeLabel(bannerHost, 'Title', title, {
-    fontSize: 40,
+  const titleLabel = makeLabel(root, 'Title', title, {
+    fontSize: 44,
     color: new Color(BANNER_LABEL_COLOR.r, BANNER_LABEL_COLOR.g, BANNER_LABEL_COLOR.b, 255),
     y: 0,
     bold: true,
   });
-  titleLabel.node.setPosition(0, 0, 0);
+  applyDesignUiTransform(titleLabel.node, 0, 780 - RL.safeTop, vis.height);
 
-  // 中央宣纸正文区
-  const sheetHost = new Node('SheetHost');
-  root.addChild(sheetHost);
-  applyDesignUiTransform(sheetHost, 0, -40, vis.height);
-  const sheet = new Node('Sheet');
-  sheetHost.addChild(sheet);
-  const sheetSp = sheet.addComponent(Sprite);
-  const sheetFrame = await loadSpriteFrame(MENU_TEX.pageSheet);
-  if (sheetFrame) applySpriteContain(sheet, sheetSp, sheetFrame, 900, 1120);
+  const rule = makeLabel(root, 'TitleRule', '—　·　—', {
+    fontSize: 20,
+    color: new Color(201, 168, 88, 160),
+    y: 0,
+  });
+  applyDesignUiTransform(rule.node, 0, 730 - RL.safeTop, vis.height);
 
   const body = new Node('Body');
   root.addChild(body);
-  applyDesignUiTransform(body, 0, -20, vis.height);
+  applyDesignUiTransform(body, 0, -40, vis.height);
 
   if (onBack) {
     const backWrap = new Node('BtnBackWrap');
@@ -99,8 +91,8 @@ export async function createMenuShell(
       name: 'BtnBack',
       label: '返回',
       style: 'quaternary',
-      width: RL.btnQuaternaryW,
-      height: RL.btnQuaternaryH,
+      width: RL.btnPrimaryW,
+      height: RL.btnPrimaryH,
       y: 0,
       onClick: onBack,
     });
@@ -120,7 +112,7 @@ export function makeRowLabel(
     fontSize: opts?.fontSize ?? 28,
     color:
       opts?.color ??
-      new Color(BODY_TEXT_COLOR.r, BODY_TEXT_COLOR.g, BODY_TEXT_COLOR.b, BODY_TEXT_COLOR.a),
+      new Color(INK_UI_TEXT.r, INK_UI_TEXT.g, INK_UI_TEXT.b, INK_UI_TEXT.a),
     y,
     x: opts?.x ?? 0,
     bold: opts?.bold,
@@ -133,18 +125,80 @@ export function makeRowLabel(
   return label;
 }
 
-/** 二级页列表行底板 */
-export async function addRowSlip(parent: Node, y: number, width = 820): Promise<Node> {
-  const n = new Node('RowSlip');
-  parent.addChild(n);
-  n.setPosition(0, y, 0);
-  const sp = n.addComponent(Sprite);
+export type InkOption = {
+  node: Node;
+  setSelected: (on: boolean) => void;
+};
+
+/**
+ * 轻量选项行：半透明墨条 + 金字，不是整页大白底上的重按钮堆。
+ */
+export async function createInkOption(
+  parent: Node,
+  opts: {
+    name: string;
+    label: string;
+    y: number;
+    width?: number;
+    height?: number;
+    onClick: () => void;
+  },
+): Promise<InkOption> {
+  const w = opts.width ?? 640;
+  const h = opts.height ?? 78;
+  const node = new Node(opts.name);
+  parent.addChild(node);
+  node.setPosition(0, opts.y, 0);
+  node.addComponent(UITransform).setContentSize(w, h);
+
+  const bg = new Node('Bg');
+  node.addChild(bg);
+  bg.addComponent(UITransform).setContentSize(w, h);
+  const sp = bg.addComponent(Sprite);
   sp.sizeMode = Sprite.SizeMode.CUSTOM;
-  const frame = await loadSpriteFrame(MENU_TEX.rowSlip);
-  const ui = n.addComponent(UITransform);
-  ui.setContentSize(width, 96);
+  sp.type = Sprite.Type.SIMPLE;
+  const frame = await loadSpriteFrame(MENU_TEX.inkMain);
   if (frame) {
     sp.spriteFrame = frame;
+  } else {
+    const px = await loadSpriteFrame(MENU_TEX.pixel);
+    if (px) sp.spriteFrame = px;
+    sp.color = new Color(28, 24, 18, 220);
   }
-  return n;
+  const op = bg.addComponent(UIOpacity);
+  op.opacity = 200;
+
+  const rim = new Node('Rim');
+  node.addChild(rim);
+  rim.addComponent(UITransform).setContentSize(w + 8, h + 8);
+  const rimSp = rim.addComponent(Sprite);
+  rimSp.sizeMode = Sprite.SizeMode.CUSTOM;
+  const rimFrame = await loadSpriteFrame(MENU_TEX.rim);
+  if (rimFrame) rimSp.spriteFrame = rimFrame;
+  const rimOp = rim.addComponent(UIOpacity);
+  rimOp.opacity = 0;
+
+  makeLabel(node, 'Label', opts.label, {
+    fontSize: 32,
+    color: new Color(BANNER_LABEL_COLOR.r, BANNER_LABEL_COLOR.g, BANNER_LABEL_COLOR.b, 255),
+    y: 0,
+    bold: true,
+  });
+
+  let busy = false;
+  node.on(Node.EventType.TOUCH_END, (_e: EventTouch) => {
+    if (busy) return;
+    busy = true;
+    playClickSfx(parent);
+    opts.onClick();
+    busy = false;
+  });
+
+  return {
+    node,
+    setSelected: (on: boolean) => {
+      rimOp.opacity = on ? 220 : 0;
+      op.opacity = on ? 255 : 200;
+    },
+  };
 }

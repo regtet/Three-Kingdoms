@@ -37,11 +37,10 @@ async function renderList(body: Node, callbacks: ContinueCallbacks): Promise<voi
   for (const slot of slots) {
     makeRowLabel(body, `Meta_${slot.id}`, formatSaveTime(slot.updatedAt), y + 36, {
       fontSize: 22,
-      color: new Color(122, 112, 96, 220),
+      color: new Color(210, 198, 170, 220),
     });
     makeRowLabel(body, `Sum_${slot.id}`, formatSaveSummary(slot), y, {
       fontSize: 28,
-      color: new Color(42, 36, 28, 255),
     });
 
     await createClassicButton(body, {

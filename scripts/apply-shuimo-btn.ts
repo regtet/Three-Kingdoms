@@ -1,33 +1,69 @@
 /**
- * 将生成的水墨按钮图裁切为透明八边形，写入 menu 按钮路径。
+ * 水墨菜单按钮：深墨匾 + 哑光金线 + 朱砂印；切角透明干净（无棋盘格）。
  */
 import path from 'path';
 import sharp from 'sharp';
 
 const SRC = path.resolve(
-  'C:/Users/Administrator/.cursor/projects/c-Users-Administrator-Desktop-Three-Kingdoms/assets/btn_shuimo_plate.png',
+  'C:/Users/Administrator/.cursor/projects/c-Users-Administrator-Desktop-Three-Kingdoms/assets/btn_ink_opaque.png',
 );
 const OUT = path.resolve('assets/resources/ui/menu');
 const W = 620;
 const H = 96;
 
 function octagonMask(w: number, h: number): Buffer {
-  const cut = Math.round(h * 0.28);
+  const cut = Math.round(h * 0.22);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-  <path d="M${cut},0 L${w - cut},0 L${w},${cut} L${w},${h - cut} L${w - cut},${h} L${cut},${h} L0,${h - cut} L0,${cut} Z" fill="white"/>
+  <path fill="white" d="M${cut},0 L${w - cut},0 L${w},${cut} L${w},${h - cut} L${w - cut},${h} L${cut},${h} L0,${h - cut} L0,${cut} Z"/>
 </svg>`;
   return Buffer.from(svg);
 }
 
 async function main() {
-  const resized = await sharp(SRC)
+  // 先铺一层深墨底，再盖水墨图，避免透明处透出棋盘/花边
+  const under = await sharp({
+    create: {
+      width: W,
+      height: H,
+      channels: 4,
+      background: { r: 18, g: 14, b: 10, alpha: 255 },
+    },
+  })
+    .png()
+    .toBuffer();
+
+  const art = await sharp(SRC)
     .resize(W, H, { fit: 'cover', position: 'centre' })
     .ensureAlpha()
     .png()
     .toBuffer();
 
-  const masked = await sharp(resized)
+  const composed = await sharp(under)
+    .composite([{ input: art, blend: 'over' }])
+    .png()
+    .toBuffer();
+
+  const masked = await sharp(composed)
     .composite([{ input: octagonMask(W, H), blend: 'dest-in' }])
+    .png()
+    .toBuffer();
+
+  // 把完全透明像素 RGB 清零，避免预乘花边
+  const { data, info } = await sharp(masked).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 8) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      data[i + 3] = 0;
+    } else if (data[i + 3] < 255) {
+      // 半透明边缘压到实心，减少毛边
+      data[i + 3] = 255;
+    }
+  }
+  const cleaned = await sharp(data, {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
     .png()
     .toBuffer();
 
@@ -41,18 +77,17 @@ async function main() {
     'btn_wood_quaternary.png',
   ];
   for (const n of names) {
-    await sharp(masked).toFile(path.join(OUT, n));
+    await sharp(cleaned).toFile(path.join(OUT, n));
     console.log('wrote', n);
   }
 
-  // 选中框：朱砂细线八边形
-  const cut = Math.round(H * 0.28);
+  const cut = Math.round(H * 0.22);
   const rim = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="108">
-    <path d="M${cut + 8},4 L${640 - cut - 8},4 L636,${cut} L636,${108 - cut} L${640 - cut - 8},104 L${cut + 8},104 L4,${108 - cut} L4,${cut} Z"
-      fill="none" stroke="#a02828" stroke-width="2.4" stroke-opacity="0.9"/>
+    <path d="M${cut + 10},4 L${630 - cut},4 L636,${cut} L636,${108 - cut} L${630 - cut},104 L${cut + 10},104 L4,${108 - cut} L4,${cut} Z"
+      fill="none" stroke="#c9a040" stroke-width="2.2" stroke-opacity="0.9"/>
   </svg>`;
   await sharp(Buffer.from(rim)).png().toFile(path.join(OUT, 'btn_selected_rim.png'));
-  console.log('shuimo masked buttons ready');
+  console.log('ink menu buttons optimized');
 }
 
 main().catch((e) => {

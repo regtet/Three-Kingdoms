@@ -115,14 +115,24 @@ export async function createClassicButton(
   bg.addComponent(UITransform).setContentSize(opts.width, opts.height);
   const sp = bg.addComponent(Sprite);
   sp.sizeMode = Sprite.SizeMode.CUSTOM;
+  sp.type = Sprite.Type.SIMPLE;
   const frame = await loadFrame(TEX_BY_STYLE[opts.style]);
   if (frame) {
+    // 关闭九宫，按设计尺寸完整显示水墨匾
+    try {
+      (frame as unknown as { insetTop: number }).insetTop = 0;
+      (frame as unknown as { insetBottom: number }).insetBottom = 0;
+      (frame as unknown as { insetLeft: number }).insetLeft = 0;
+      (frame as unknown as { insetRight: number }).insetRight = 0;
+    } catch {
+      /* ignore */
+    }
     sp.spriteFrame = frame;
     bg.getComponent(UITransform)!.setContentSize(opts.width, opts.height);
   } else {
     const pixel = await loadFrame(MENU_TEX.pixel);
     if (pixel) sp.spriteFrame = pixel;
-    sp.color = new Color(80, 50, 30, 255);
+    sp.color = new Color(28, 24, 18, 255);
   }
 
   const rim = new Node('Rim');

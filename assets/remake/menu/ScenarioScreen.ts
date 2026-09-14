@@ -1,7 +1,12 @@
-import { Color, Node } from 'cc';
+import { Node } from 'cc';
 import { SCENARIOS, type ScenarioDef } from '../shared/MenuCatalog';
-import { createClassicButton, type ClassicButton } from '../shared/MenuChrome';
-import { createMenuShell, makeRowLabel } from '../shared/MenuShell';
+import { createClassicButton } from '../shared/MenuChrome';
+import {
+  createInkOption,
+  createMenuShell,
+  makeRowLabel,
+  type InkOption,
+} from '../shared/MenuShell';
 import { RL } from '../shared/RemakeLayout';
 
 export type ScenarioCallbacks = {
@@ -16,10 +21,9 @@ export async function buildScenarioScreen(
   const shell = await createMenuShell(layer, '选择剧本', callbacks.onBack);
 
   let selected = SCENARIOS[0];
-  const detail = makeRowLabel(shell.body, 'Detail', '', -40, {
+  const detail = makeRowLabel(shell.body, 'Detail', '', -80, {
     fontSize: 26,
-    color: new Color(58, 52, 44, 255),
-    width: 920,
+    width: 860,
   });
   detail.horizontalAlign = 1;
 
@@ -28,26 +32,25 @@ export async function buildScenarioScreen(
   };
   refreshDetail();
 
-  const buttons: ClassicButton[] = [];
-  let y = 460;
+  const options: InkOption[] = [];
+  let y = 420;
   for (const sc of SCENARIOS) {
-    const btn = await createClassicButton(shell.body, {
+    const opt = await createInkOption(shell.body, {
       name: `Sc_${sc.id}`,
       label: sc.name,
-      style: 'secondary',
-      width: RL.btnSecondaryW,
-      height: RL.btnSecondaryH,
       y,
+      width: 640,
+      height: 78,
       onClick: () => {
         selected = sc;
         refreshDetail();
-        buttons.forEach((b, i) => b.setSelected(SCENARIOS[i].id === selected.id));
+        options.forEach((o, i) => o.setSelected(SCENARIOS[i].id === selected.id));
       },
     });
-    buttons.push(btn);
-    y -= 120;
+    options.push(opt);
+    y -= 100;
   }
-  buttons[0]?.setSelected(true);
+  options[0]?.setSelected(true);
 
   await createClassicButton(shell.body, {
     name: 'BtnConfirm',
@@ -55,7 +58,7 @@ export async function buildScenarioScreen(
     style: 'primary',
     width: RL.btnPrimaryW,
     height: RL.btnPrimaryH,
-    y: -300,
+    y: -360,
     onClick: () => callbacks.onPick(selected),
   });
 }

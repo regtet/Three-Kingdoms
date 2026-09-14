@@ -121,6 +121,6 @@ describe('Title art paths', () => {
     expect(RL.btnPrimaryW).toBe(RL.btnSecondaryW);
     expect(RL.btnPrimaryH).toBe(RL.btnQuaternaryH);
     expect(RL.btnFontSize).toBe(36);
-    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.2.8-clean-title');
+    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.3.0-subpage-air');
   });
 });

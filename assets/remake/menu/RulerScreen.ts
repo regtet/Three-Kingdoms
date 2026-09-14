@@ -67,7 +67,6 @@ export async function buildRulerScreen(layer: Node, callbacks: RulerCallbacks): 
   factionLabel.horizontalAlign = 0;
   const blurbLabel = makeRowLabel(shell.body, 'Blurb', '', 200, {
     fontSize: 24,
-    color: new Color(58, 52, 44, 255),
     x: 120,
     width: 520,
   });
