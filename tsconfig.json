@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["assets/core/*"],
+      "@core": ["assets/core/index.ts"]
+    }
+  },
+  "include": ["assets/core/**/*.ts", "tests/**/*.ts"]
+}

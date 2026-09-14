@@ -1,0 +1,14 @@
+{
+  "name": "three-kingdoms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "三國志２精致重开 — core 地基",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
