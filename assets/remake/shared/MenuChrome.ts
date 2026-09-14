@@ -12,10 +12,10 @@ import {
   UIOpacity,
   UITransform,
   Vec3,
-  Widget,
   tween,
 } from 'cc';
 import { MENU_CLICK_SFX, MENU_TEX, RL } from './RemakeLayout';
+import { setVisibleLayerSize } from './ScreenAdapt';
 
 export type MenuButtonStyle = 'primary' | 'secondary' | 'scroll' | 'settings';
 
@@ -44,20 +44,9 @@ export async function loadSpriteFrame(path: string): Promise<SpriteFrame | null>
   return loadFrame(path);
 }
 
-export function stretchFull(node: Node, w = RL.W, h = RL.H): void {
-  const ui = node.getComponent(UITransform) ?? node.addComponent(UITransform);
-  ui.setContentSize(w, h);
-  const widget = node.getComponent(Widget) ?? node.addComponent(Widget);
-  widget.isAlignTop = true;
-  widget.isAlignBottom = true;
-  widget.isAlignLeft = true;
-  widget.isAlignRight = true;
-  widget.top = 0;
-  widget.bottom = 0;
-  widget.left = 0;
-  widget.right = 0;
-  widget.alignMode = Widget.AlignMode.ON_WINDOW_RESIZE;
-  widget.updateAlignment();
+/** 全屏层 = 可见设计区 */
+export function stretchFull(node: Node): void {
+  setVisibleLayerSize(node);
 }
 
 export function makeLabel(

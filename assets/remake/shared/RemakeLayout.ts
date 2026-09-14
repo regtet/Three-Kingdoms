@@ -1,16 +1,23 @@
-/** 设计基准：竖屏 9:16，1080×1920 px。坐标仅写于此。 */
+/**
+ * 设计基准：1080×1920（9:16）。UI 坐标写死于此。
+ * 适配逻辑见 ScreenAdapt.ts（背景 Cover / UI 设计坐标 + 等比缩放）。
+ */
 export const RL = {
   W: 1080,
   H: 1920,
-  /** 安全区上下内边距 */
-  safeTop: 64,
-  safeBottom: 48,
 
+  /** Safe Area：只作用于 UI 边距，不改变背景 */
+  safeTop: 72,
+  safeBottom: 56,
+
+  /** 设计坐标（相对 1080×1920 中心，Y 向上） */
   logoY: 480,
   logoMaxW: 780,
   logoMaxH: 320,
 
   menuCenterY: -220,
+  /** 页脚设计 Y（底边 + safeBottom） */
+  footerY: -960 + 56 + 36,
   gapPrimary: 40,
   btnNewW: 720,
   btnNewH: 140,

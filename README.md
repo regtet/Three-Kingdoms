@@ -24,4 +24,15 @@ npm test
 - `assets/remake` — 主菜单 UI
 - `assets/resources` — 素材（含 `ui/menu` 按钮贴图）
 
-生成菜单贴图：`npm run gen:menu-ui`
+## 适配契约（已锁定 · 主菜单）
+
+**只留一套控制，不再手改 Camera / 抢 Canvas 尺寸。**
+
+- 设计：1080×1920；项目 `fitWidth` + 运行时 `FIXED_WIDTH`
+- Canvas：场景 `alignCanvasWithScreen` + Widget（引擎对齐）
+- 背景：原图像素尺寸 + **统一 scale** Cover（禁止改宽高比）
+- UI：1080×1920 设计坐标；短屏整体等比缩小
+- 构建号：`REMAKE-v0.1.6-adapt-onepath`
+
+预览请切：1080×1920 / 1080×2160 / 1080×2400。
+

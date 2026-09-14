@@ -5,12 +5,13 @@ import {
   loadSpriteFrame,
   makeLabel,
   setOpacity,
-  stretchFull,
 } from '../shared/MenuChrome';
+import {
+  applyDesignUiTransform,
+  getVisibleDesignSize,
+  matchVisibleSize,
+} from '../shared/ScreenAdapt';
 
-/**
- * 子功能占位页：仅标题 + 返回。正式内容后续按屏补。
- */
 export async function buildPlaceholderScreen(
   layer: Node,
   title: string,
@@ -18,40 +19,46 @@ export async function buildPlaceholderScreen(
 ): Promise<void> {
   layer.destroyAllChildren();
 
+  const vis = getVisibleDesignSize();
   const root = new Node('Placeholder');
   layer.addChild(root);
-  stretchFull(root);
+  matchVisibleSize(root, vis);
   setOpacity(root, 255);
 
   const dim = new Node('Dim');
   root.addChild(dim);
-  stretchFull(dim);
+  matchVisibleSize(dim, vis);
   const dimSp = dim.addComponent(Sprite);
   dimSp.sizeMode = Sprite.SizeMode.CUSTOM;
-  dim.getComponent(UITransform)!.setContentSize(RL.W, RL.H);
   const white = await loadSpriteFrame(MENU_TEX.pixel);
   if (white) dimSp.spriteFrame = white;
   dimSp.color = new Color(12, 14, 18, 230);
 
-  makeLabel(root, 'Title', title, {
+  const titleLabel = makeLabel(root, 'Title', title, {
     fontSize: 48,
     color: new Color(232, 200, 120, 255),
-    y: 200,
+    y: 0,
     bold: true,
   });
-  makeLabel(root, 'Hint', '内容页尚未实现 · 精致重开按屏推进', {
+  applyDesignUiTransform(titleLabel.node, 0, 200, vis.height);
+
+  const hint = makeLabel(root, 'Hint', '内容页尚未实现 · 精致重开按屏推进', {
     fontSize: 26,
     color: new Color(180, 170, 150, 200),
-    y: 100,
+    y: 0,
   });
+  applyDesignUiTransform(hint.node, 0, 100, vis.height);
 
-  await createClassicButton(root, {
+  const backWrap = new Node('BtnBackWrap');
+  root.addChild(backWrap);
+  applyDesignUiTransform(backWrap, 0, -200, vis.height);
+  await createClassicButton(backWrap, {
     name: 'BtnBack',
     label: '返回',
     style: 'settings',
     width: RL.btnSettingsW,
     height: RL.btnSettingsH,
-    y: -200,
+    y: 0,
     onClick: onBack,
   });
 }
