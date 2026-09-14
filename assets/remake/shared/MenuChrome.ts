@@ -199,6 +199,7 @@ export function playClickSfx(host: Node): void {
 }
 
 export function fadeOpacity(node: Node, from: number, to: number, ms: number): Promise<void> {
+  if (!node.isValid) return Promise.resolve();
   const op = node.getComponent(UIOpacity) ?? node.addComponent(UIOpacity);
   op.opacity = from;
   return new Promise((resolve) => {
@@ -210,6 +211,7 @@ export function fadeOpacity(node: Node, from: number, to: number, ms: number): P
 }
 
 export function setOpacity(node: Node, opacity: number): void {
+  if (!node.isValid) return;
   const op = node.getComponent(UIOpacity) ?? node.addComponent(UIOpacity);
   op.opacity = opacity;
 }

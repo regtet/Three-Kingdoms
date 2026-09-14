@@ -10,6 +10,7 @@ import {
   applyDesignUiTransform,
   getVisibleDesignSize,
   matchVisibleSize,
+  safeClearChildren,
 } from '../shared/ScreenAdapt';
 
 export async function buildPlaceholderScreen(
@@ -17,7 +18,7 @@ export async function buildPlaceholderScreen(
   title: string,
   onBack: () => void,
 ): Promise<void> {
-  layer.destroyAllChildren();
+  safeClearChildren(layer);
 
   const vis = getVisibleDesignSize();
   const root = new Node('Placeholder');

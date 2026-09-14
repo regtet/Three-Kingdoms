@@ -14,12 +14,12 @@ import {
   type ClassicButton,
 } from '../shared/MenuChrome';
 import {
-  applyContain,
-  applyCover,
   applyDesignUiTransform,
-  framePixelSize,
+  applySpriteContain,
+  applySpriteCover,
   getVisibleDesignSize,
   matchVisibleSize,
+  safeClearChildren,
 } from '../shared/ScreenAdapt';
 import { hasSave, hasSeenIntro, markIntroSeen } from '../shared/SaveProbe';
 
@@ -30,17 +30,12 @@ export type TitleCallbacks = {
   onSettings: () => void;
 };
 
-/**
- * 主菜单：
- * - Bg：原图比例 + 统一 scale Cover 可见区（不改宽高比）
- * - Logo/Menu：1080×1920 设计坐标；短屏整体等比缩小
- */
 export async function buildTitleScreen(
   layer: Node,
   callbacks: TitleCallbacks,
   opts?: { forceIntro?: boolean },
 ): Promise<void> {
-  layer.destroyAllChildren();
+  safeClearChildren(layer);
 
   const vis = getVisibleDesignSize();
   const vw = vis.width;
@@ -51,36 +46,29 @@ export async function buildTitleScreen(
   matchVisibleSize(root, vis);
   setOpacity(root, 255);
 
-  // —— 背景 Cover（等比 scale）——
   const bg = new Node('Bg');
   root.addChild(bg);
   const bgSp = bg.addComponent(Sprite);
-  bgSp.sizeMode = Sprite.SizeMode.CUSTOM;
   const bgFrame = await loadSpriteFrame(MENU_BG_PATH);
   if (bgFrame) {
-    bgSp.spriteFrame = bgFrame;
-    const { w, h } = framePixelSize(bgFrame);
-    applyCover(bg, w, h, vw, vh);
+    applySpriteCover(bg, bgSp, bgFrame, vw, vh);
   } else {
     bg.addComponent(UITransform).setContentSize(vw, vh);
+    bgSp.sizeMode = Sprite.SizeMode.CUSTOM;
     bgSp.color = new Color(20, 24, 32, 255);
   }
 
-  // 轻雾：宽向 Cover，高度用设计 mistH（等比）
   const mist = new Node('Mist');
   root.addChild(mist);
-  mist.setPosition(0, RL.mistY, 0);
   const mistSp = mist.addComponent(Sprite);
-  mistSp.sizeMode = Sprite.SizeMode.CUSTOM;
   const mistFrame = await loadSpriteFrame(MENU_TEX.mist);
   if (mistFrame) {
-    mistSp.spriteFrame = mistFrame;
-    const { w, h } = framePixelSize(mistFrame);
-    applyCover(mist, w, h, vw * 1.15, RL.mistH);
-    mist.setPosition(0, RL.mistY, 0);
+    applySpriteCover(mist, mistSp, mistFrame, vw * 1.15, RL.mistH);
   } else {
     mist.addComponent(UITransform).setContentSize(vw * 1.15, RL.mistH);
+    mistSp.sizeMode = Sprite.SizeMode.CUSTOM;
   }
+  mist.setPosition(0, RL.mistY, 0);
   mistSp.color = new Color(255, 255, 255, 80);
   tween(mist)
     .repeatForever(
@@ -90,7 +78,6 @@ export async function buildTitleScreen(
     )
     .start();
 
-  // —— Logo ——
   const logoGroup = new Node('LogoGroup');
   root.addChild(logoGroup);
   applyDesignUiTransform(logoGroup, 0, 0, vh);
@@ -100,18 +87,16 @@ export async function buildTitleScreen(
   const logoDesignY = RL.logoY - RL.safeTop * 0.15;
   logo.setPosition(0, logoDesignY, 0);
   const logoSp = logo.addComponent(Sprite);
-  logoSp.sizeMode = Sprite.SizeMode.CUSTOM;
   const logoFrame = await loadSpriteFrame(MENU_LOGO_PATH);
   if (logoFrame) {
-    logoSp.spriteFrame = logoFrame;
-    const { w, h } = framePixelSize(logoFrame);
-    applyContain(logo, w, h, RL.logoMaxW, RL.logoMaxH);
+    // TRIMMED + 统一 scale，避免 CUSTOM+originalSize 拉伸
+    applySpriteContain(logo, logoSp, logoFrame, RL.logoMaxW, RL.logoMaxH);
     logo.setPosition(0, logoDesignY, 0);
   } else {
     logo.addComponent(UITransform).setContentSize(RL.logoMaxW, 120);
+    logoSp.sizeMode = Sprite.SizeMode.CUSTOM;
   }
 
-  // —— 菜单（按钮设计宽高不变）——
   const menu = new Node('Menu');
   root.addChild(menu);
   applyDesignUiTransform(menu, 0, RL.menuCenterY, vh);
@@ -217,12 +202,13 @@ export async function buildTitleScreen(
   buttons.forEach((b) => setOpacity(b.node, 0));
 
   await fadeOpacity(black, 255, 0, RL.introStepMs + 200);
+  if (!black.isValid) return;
   black.active = false;
   await fadeOpacity(logoGroup, 0, 255, RL.introStepMs);
   await fadeOpacity(menu, 0, 255, RL.introStepMs);
   await fadeOpacity(sub.node, 0, 255, RL.introStepMs * 0.5);
   for (const b of buttons) {
-    if (!b.node.active) continue;
+    if (!b.node.isValid || !b.node.active) continue;
     await fadeOpacity(b.node, 0, 255, RL.introStepMs * 0.55);
   }
   markIntroSeen();
