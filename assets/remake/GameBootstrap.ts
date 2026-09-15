@@ -20,6 +20,22 @@ const { ccclass } = _decorator;
 export class GameBootstrap extends Component {
   onLoad() {
     console.log('[GameBootstrap] 启动…');
+    // Cocos EditBox 在 Web 预览聚焦时可能对空节点调 scrollIntoView
+    if (typeof Element !== 'undefined' && Element.prototype) {
+      const proto = Element.prototype as Element & {
+        scrollIntoView: (...args: unknown[]) => void;
+      };
+      const orig = proto.scrollIntoView;
+      proto.scrollIntoView = function safeScrollIntoView(...args: unknown[]) {
+        try {
+          if (typeof orig === 'function') {
+            return orig.apply(this, args as []);
+          }
+        } catch {
+          /* ignore web EditBox focus quirk */
+        }
+      };
+    }
     view.setOrientation(macro.ORIENTATION_PORTRAIT);
     applyDesignResolution();
 

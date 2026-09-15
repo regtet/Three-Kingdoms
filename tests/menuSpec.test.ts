@@ -12,7 +12,14 @@ import {
   RL,
 } from '../assets/remake/shared/RemakeLayout';
 import { REMAKE_BUILD_TAG } from '../assets/remake/version';
-import { SCENARIOS, GALLERY_OFFICERS, rulersForScenario } from '../assets/remake/shared/MenuCatalog';
+import {
+  SCENARIOS,
+  GALLERY_OFFICERS,
+  galleryAge,
+  queryGalleryOfficers,
+  rulersForScenario,
+} from '../assets/remake/shared/MenuCatalog';
+import { OFFICER_COUNT } from '../assets/core/data/OfficerCatalog';
 import {
   addSave,
   deleteSave,
@@ -59,10 +66,18 @@ describe('MenuCatalog', () => {
   });
 
   it('图鉴有头像与五维', () => {
-    expect(GALLERY_OFFICERS.length).toBeGreaterThanOrEqual(10);
+    expect(GALLERY_OFFICERS.length).toBe(OFFICER_COUNT);
+    expect(GALLERY_OFFICERS.length).toBeGreaterThanOrEqual(100);
     const o = GALLERY_OFFICERS[0];
     expect(o.portrait).toBeTruthy();
     expect(o.force).toBeGreaterThan(0);
+    expect(o.bio.length).toBeGreaterThan(0);
+    expect(o.gender === 'male' || o.gender === 'female').toBe(true);
+    expect(queryGalleryOfficers({ attr: 'all' }).length).toBe(GALLERY_OFFICERS.length);
+    const byForce = queryGalleryOfficers({ attr: 'force' });
+    expect(byForce[0].force).toBeGreaterThanOrEqual(byForce[1].force);
+    expect(galleryAge(GALLERY_OFFICERS[0])).toBeGreaterThan(0);
+    expect(GALLERY_OFFICERS.some((x) => x.gender === 'female')).toBe(true);
   });
 });
 
@@ -121,6 +136,6 @@ describe('Title art paths', () => {
     expect(RL.btnPrimaryW).toBe(RL.btnSecondaryW);
     expect(RL.btnPrimaryH).toBe(RL.btnQuaternaryH);
     expect(RL.btnFontSize).toBe(40);
-    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.3.5-flow-brush');
+    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.5.0-list-pool');
   });
 });

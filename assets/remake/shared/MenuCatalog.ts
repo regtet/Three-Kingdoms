@@ -1,6 +1,8 @@
 /**
  * 菜单用最小内容库：剧本 / 可选君主 / 图鉴武将。
  */
+import { OFFICER_CATALOG } from '../../core/data/OfficerCatalog';
+
 export type ScenarioDef = {
   id: string;
   name: string;
@@ -8,7 +10,7 @@ export type ScenarioDef = {
   year: number;
   month: number;
   blurb: string;
-  /** 该剧本可选君主 factionId */
+  /** 该剧本可选君主 id */
   rulerIds: string[];
 };
 
@@ -25,8 +27,12 @@ export type RulerDef = {
 export type GalleryOfficer = {
   id: string;
   name: string;
+  courtesyName?: string;
   factionId: string;
   factionName: string;
+  style: string;
+  gender: 'male' | 'female';
+  birthYear: number;
   force: number;
   intellect: number;
   leadership: number;
@@ -35,6 +41,97 @@ export type GalleryOfficer = {
   bio: string;
   portrait: string;
 };
+
+/** 图鉴年龄推算基准年（建安五年）；剧本年不同则年龄不同，图鉴统一按此年展示 */
+export const GALLERY_REF_YEAR = 200;
+
+export type GalleryAttrFilter =
+  | 'all'
+  | 'force'
+  | 'intellect'
+  | 'leadership'
+  | 'politics'
+  | 'charm';
+
+export type GalleryFilter = {
+  id: GalleryAttrFilter;
+  label: string;
+};
+
+const FACTION_NAME: Record<string, string> = {
+  wei: '魏',
+  shu: '蜀',
+  wu: '吴',
+  yuan: '袁',
+  dong: '董',
+  lu: '吕',
+  han: '汉',
+  nan: '南',
+  other: '群',
+};
+
+export const GALLERY_ATTR_FILTERS: readonly GalleryFilter[] = [
+  { id: 'all', label: '全部' },
+  { id: 'force', label: '武力' },
+  { id: 'intellect', label: '智力' },
+  { id: 'leadership', label: '统率' },
+  { id: 'politics', label: '政治' },
+  { id: 'charm', label: '魅力' },
+] as const;
+
+export function galleryAge(o: { birthYear: number }, year = GALLERY_REF_YEAR): number {
+  return year - o.birthYear;
+}
+
+function inferGender(style: string): 'male' | 'female' {
+  return style === '女将' ? 'female' : 'male';
+}
+
+function toGalleryOfficer(o: (typeof OFFICER_CATALOG)[number]): GalleryOfficer {
+  return {
+    id: o.id,
+    name: o.name,
+    courtesyName: o.courtesyName,
+    factionId: o.factionHint,
+    factionName: FACTION_NAME[o.factionHint] ?? '群',
+    style: o.style,
+    gender: inferGender(o.style),
+    birthYear: o.birthYear,
+    force: o.force,
+    intellect: o.intellect,
+    leadership: o.leadership,
+    politics: o.politics,
+    charm: o.charm,
+    bio: o.bio,
+    portrait: o.portrait,
+  };
+}
+
+/** 图鉴全库：接 core OfficerCatalog（一百余人） */
+export const GALLERY_OFFICERS: readonly GalleryOfficer[] =
+  OFFICER_CATALOG.map(toGalleryOfficer);
+
+const ATTR_KEY: Record<Exclude<GalleryAttrFilter, 'all'>, keyof GalleryOfficer> = {
+  force: 'force',
+  intellect: 'intellect',
+  leadership: 'leadership',
+  politics: 'politics',
+  charm: 'charm',
+};
+
+/** 属性排序（列表展示性别/年龄数字，不做分段筛选） */
+export function queryGalleryOfficers(opts: {
+  attr?: GalleryAttrFilter;
+} = {}): GalleryOfficer[] {
+  const attr = opts.attr ?? 'all';
+  if (attr === 'all') return [...GALLERY_OFFICERS];
+
+  const key = ATTR_KEY[attr];
+  return [...GALLERY_OFFICERS].sort((a, b) => {
+    const d = (b[key] as number) - (a[key] as number);
+    return d !== 0 ? d : a.name.localeCompare(b.name, 'zh');
+  });
+}
 
 export const SCENARIOS: readonly ScenarioDef[] = [
   {
@@ -141,217 +238,6 @@ export const RULERS: readonly RulerDef[] = [
   },
 ];
 
-export const GALLERY_OFFICERS: readonly GalleryOfficer[] = [
-  {
-    id: 'cao_cao',
-    name: '曹操',
-    factionId: 'wei',
-    factionName: '魏',
-    force: 72,
-    intellect: 91,
-    leadership: 96,
-    politics: 94,
-    charm: 88,
-    bio: '曹魏奠基者。善用兵、通权变，诗赋亦称大家。',
-    portrait: 'officer/portraits/g_caocao',
-  },
-  {
-    id: 'liu_bei',
-    name: '刘备',
-    factionId: 'shu',
-    factionName: '蜀',
-    force: 74,
-    intellect: 76,
-    leadership: 90,
-    politics: 85,
-    charm: 98,
-    bio: '蜀汉昭烈帝。以信义聚人心，终成三分之一。',
-    portrait: 'officer/portraits/g_liubei',
-  },
-  {
-    id: 'sun_quan',
-    name: '孙权',
-    factionId: 'wu',
-    factionName: '吴',
-    force: 68,
-    intellect: 82,
-    leadership: 88,
-    politics: 90,
-    charm: 86,
-    bio: '吴大帝。年轻继位，守成开疆，赤壁联刘破曹。',
-    portrait: 'officer/portraits/g_sunquan',
-  },
-  {
-    id: 'zhuge_liang',
-    name: '诸葛亮',
-    factionId: 'shu',
-    factionName: '蜀',
-    force: 62,
-    intellect: 100,
-    leadership: 92,
-    politics: 98,
-    charm: 90,
-    bio: '卧龙。出师未捷身先死，长使英雄泪满襟。',
-    portrait: 'officer/portraits/g_zhugeliang',
-  },
-  {
-    id: 'guan_yu',
-    name: '关羽',
-    factionId: 'shu',
-    factionName: '蜀',
-    force: 97,
-    intellect: 80,
-    leadership: 90,
-    politics: 70,
-    charm: 88,
-    bio: '武圣。义薄云天，水淹七军，威震华夏。',
-    portrait: 'officer/portraits/g_guanyu',
-  },
-  {
-    id: 'zhang_fei',
-    name: '张飞',
-    factionId: 'shu',
-    factionName: '蜀',
-    force: 98,
-    intellect: 55,
-    leadership: 84,
-    politics: 42,
-    charm: 60,
-    bio: '燕人张翼德。长坂桥一声喝退曹军。',
-    portrait: 'officer/portraits/g_zhangfei',
-  },
-  {
-    id: 'zhao_yun',
-    name: '赵云',
-    factionId: 'shu',
-    factionName: '蜀',
-    force: 96,
-    intellect: 78,
-    leadership: 88,
-    politics: 72,
-    charm: 86,
-    bio: '常山赵子龙。单骑救主，一身是胆。',
-    portrait: 'officer/portraits/g_zhaoyun',
-  },
-  {
-    id: 'zhou_yu',
-    name: '周瑜',
-    factionId: 'wu',
-    factionName: '吴',
-    force: 78,
-    intellect: 96,
-    leadership: 94,
-    politics: 82,
-    charm: 92,
-    bio: '美周郎。赤壁火攻，定鼎江东。',
-    portrait: 'officer/portraits/g_zhouyu',
-  },
-  {
-    id: 'lu_xun',
-    name: '陆逊',
-    factionId: 'wu',
-    factionName: '吴',
-    force: 70,
-    intellect: 95,
-    leadership: 93,
-    politics: 88,
-    charm: 80,
-    bio: '书生拜将。夷陵火烧连营，折尽蜀汉锐气。',
-    portrait: 'officer/portraits/g_luxun',
-  },
-  {
-    id: 'guo_jia',
-    name: '郭嘉',
-    factionId: 'wei',
-    factionName: '魏',
-    force: 40,
-    intellect: 98,
-    leadership: 72,
-    politics: 86,
-    charm: 78,
-    bio: '鬼才。曹操股肱，英年早逝令人扼腕。',
-    portrait: 'officer/portraits/g_guojia',
-  },
-  {
-    id: 'xiahou_dun',
-    name: '夏侯惇',
-    factionId: 'wei',
-    factionName: '魏',
-    force: 90,
-    intellect: 62,
-    leadership: 86,
-    politics: 58,
-    charm: 70,
-    bio: '拔矢啖睛。曹氏宗亲猛将，忠勇无双。',
-    portrait: 'officer/portraits/g_xiahoudun',
-  },
-  {
-    id: 'zhang_liao',
-    name: '张辽',
-    factionId: 'wei',
-    factionName: '魏',
-    force: 93,
-    intellect: 78,
-    leadership: 91,
-    politics: 65,
-    charm: 74,
-    bio: '威震逍遥津。江东小儿闻名止啼。',
-    portrait: 'officer/portraits/g_zhangliao',
-  },
-  {
-    id: 'sima_yi',
-    name: '司马懿',
-    factionId: 'wei',
-    factionName: '魏',
-    force: 58,
-    intellect: 97,
-    leadership: 90,
-    politics: 96,
-    charm: 70,
-    bio: '狼顾之相。隐忍布局，终移曹氏之鼎。',
-    portrait: 'officer/portraits/pool/pool_sima_yi',
-  },
-  {
-    id: 'lu_bu',
-    name: '吕布',
-    factionId: 'lu',
-    factionName: '吕',
-    force: 100,
-    intellect: 42,
-    leadership: 80,
-    politics: 30,
-    charm: 72,
-    bio: '天下无双。人中吕布，马中赤兔。',
-    portrait: 'officer/portraits/pool/pool_lu_bu',
-  },
-  {
-    id: 'jia_xu',
-    name: '贾诩',
-    factionId: 'wei',
-    factionName: '魏',
-    force: 48,
-    intellect: 97,
-    leadership: 70,
-    politics: 88,
-    charm: 55,
-    bio: '毒士。算无遗策，自保亦精。',
-    portrait: 'officer/portraits/pool/pool_jia_xu',
-  },
-  {
-    id: 'pang_tong',
-    name: '庞统',
-    factionId: 'shu',
-    factionName: '蜀',
-    force: 55,
-    intellect: 97,
-    leadership: 78,
-    politics: 84,
-    charm: 60,
-    bio: '凤雏。与卧龙并称，落凤坡殉志。',
-    portrait: 'officer/portraits/pool/pool_pang_tong',
-  },
-];
-
 export function getScenario(id: string): ScenarioDef | undefined {
   return SCENARIOS.find((s) => s.id === id);
 }
@@ -360,7 +246,7 @@ export function rulersForScenario(scenarioId: string): RulerDef[] {
   const sc = getScenario(scenarioId);
   if (!sc) return [];
   return sc.rulerIds
-    .map((id) => RULERS.find((r) => r.id === id))
+    .map((rid) => RULERS.find((r) => r.id === rid))
     .filter((r): r is RulerDef => !!r);
 }
 

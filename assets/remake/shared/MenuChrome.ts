@@ -75,15 +75,26 @@ export function makeLabel(
   const ui = n.addComponent(UITransform);
   ui.setContentSize(RL.W - 120, opts.fontSize * 2);
   const label = n.addComponent(Label);
-  label.string = text;
+  // Cocos Label.string 遇 undefined 会在内部读 .length 崩掉
+  label.string = text == null ? '' : String(text);
   label.fontSize = opts.fontSize;
   label.lineHeight = Math.round(opts.fontSize * 1.25);
   label.horizontalAlign = Label.HorizontalAlign.CENTER;
   label.verticalAlign = Label.VerticalAlign.CENTER;
   label.color = opts.color;
-  label.overflow = Label.Overflow.SHRINK;
+  label.overflow = Label.Overflow.NONE;
   if (opts.bold) label.isBold = true;
   return label;
+}
+
+/** 安全写 Label，避免销毁后/空值触发 length 报错 */
+export function setLabelText(label: Label | null | undefined, text: unknown): void {
+  if (!label || !label.isValid) return;
+  try {
+    label.string = text == null ? '' : String(text);
+  } catch {
+    /* ignore assembler race */
+  }
 }
 
 export type ClassicButton = {
