@@ -120,7 +120,7 @@ describe('Title art paths', () => {
     expect(RL.H).toBe(1920);
     expect(RL.btnPrimaryW).toBe(RL.btnSecondaryW);
     expect(RL.btnPrimaryH).toBe(RL.btnQuaternaryH);
-    expect(RL.btnFontSize).toBe(36);
-    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.3.0-subpage-air');
+    expect(RL.btnFontSize).toBe(40);
+    expect(REMAKE_BUILD_TAG).toBe('REMAKE-v0.3.5-flow-brush');
   });
 });

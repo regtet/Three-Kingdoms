@@ -4,6 +4,7 @@ import {
   MENU_LOGO_PATH,
   MENU_TEX,
   RL,
+  TITLE_BRUSH_TEX,
 } from '../shared/RemakeLayout';
 import {
   TITLE_ENTRIES,
@@ -47,8 +48,7 @@ const STYLE_BY_ID: Record<
 };
 
 /**
- * 标题屏需求（对齐参考·三国志霸业）：
- * 全幅水墨底 → Logo → 深墨金边按钮竖列（亮金字）→ 页脚短句。
+ * 标题屏：全幅水墨底 → Logo → 毛笔墨痕按钮竖列（宣纸色字）→ 无页脚。
  * 不盖大卷轴/浅纸托底，避免糊成一片。
  */
 export async function buildTitleScreen(
@@ -129,7 +129,9 @@ export async function buildTitleScreen(
 
   let y = totalH / 2;
   const buttons: ClassicButton[] = [];
-  for (const entry of visibleEntries) {
+  const xJitter = [8, -14, 12, -6];
+  for (let i = 0; i < visibleEntries.length; i++) {
+    const entry = visibleEntries[i];
     const geo = STYLE_BY_ID[entry.id];
     y -= geo.height / 2;
     buttons.push(
@@ -140,6 +142,9 @@ export async function buildTitleScreen(
         width: geo.width,
         height: geo.height,
         y,
+        x: xJitter[i % xJitter.length],
+        texturePath: TITLE_BRUSH_TEX[i % TITLE_BRUSH_TEX.length],
+        bold: false,
         onClick: cbMap[entry.id],
       }),
     );

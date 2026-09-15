@@ -4,14 +4,14 @@ import {
   rulersForScenario,
   type RulerDef,
 } from '../shared/MenuCatalog';
+import { createClassicButton, loadSpriteFrame } from '../shared/MenuChrome';
 import {
-  createClassicButton,
-  loadSpriteFrame,
-  type ClassicButton,
-} from '../shared/MenuChrome';
-import { createMenuShell, makeRowLabel } from '../shared/MenuShell';
+  createInkOption,
+  createMenuShell,
+  makeRowLabel,
+  type InkOption,
+} from '../shared/MenuShell';
 import { applySpriteContain } from '../shared/ScreenAdapt';
-import { RL } from '../shared/RemakeLayout';
 
 export type RulerCallbacks = {
   scenarioId: string;
@@ -71,7 +71,6 @@ export async function buildRulerScreen(layer: Node, callbacks: RulerCallbacks): 
     width: 520,
   });
   blurbLabel.horizontalAlign = 0;
-  blurbLabel.overflow = 3; // RESIZE_HEIGHT-ish; use SHRINK=2 or CLAMP
   blurbLabel.overflow = 2;
 
   const refresh = async () => {
@@ -85,33 +84,30 @@ export async function buildRulerScreen(layer: Node, callbacks: RulerCallbacks): 
   };
   await refresh();
 
-  const buttons: ClassicButton[] = [];
-  let y = -40;
+  const options: InkOption[] = [];
+  let y = -20;
   for (const r of rulers) {
-    const btn = await createClassicButton(shell.body, {
+    const opt = await createInkOption(shell.body, {
       name: `Ruler_${r.id}`,
       label: r.name,
-      style: 'tertiary',
-      width: RL.btnTertiaryW,
-      height: RL.btnTertiaryH,
       y,
       onClick: () => {
         selected = r;
         void refresh();
-        buttons.forEach((b, i) => b.setSelected(rulers[i].id === selected.id));
+        options.forEach((o, i) => o.setSelected(rulers[i].id === selected.id));
       },
     });
-    buttons.push(btn);
-    y -= 100;
+    options.push(opt);
+    y -= 82;
   }
-  buttons[0]?.setSelected(true);
+  options[0]?.setSelected(true);
 
   await createClassicButton(shell.body, {
     name: 'BtnStart',
     label: '开始游戏',
-    style: 'primary',
-    width: RL.btnPrimaryW,
-    height: RL.btnPrimaryH,
+    style: 'tertiary',
+    width: 580,
+    height: 92,
     y: -520,
     onClick: () => callbacks.onConfirm(selected),
   });

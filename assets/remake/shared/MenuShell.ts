@@ -91,8 +91,8 @@ export async function createMenuShell(
       name: 'BtnBack',
       label: '返回',
       style: 'quaternary',
-      width: RL.btnPrimaryW,
-      height: RL.btnPrimaryH,
+      width: 580,
+      height: 92,
       y: 0,
       onClick: onBack,
     });
@@ -131,7 +131,7 @@ export type InkOption = {
 };
 
 /**
- * 轻量选项行：半透明墨条 + 金字，不是整页大白底上的重按钮堆。
+ * 轻量选项行：淡墨条 + 淡金字（无朱印、无重匾）。
  */
 export async function createInkOption(
   parent: Node,
@@ -144,7 +144,7 @@ export async function createInkOption(
     onClick: () => void;
   },
 ): Promise<InkOption> {
-  const w = opts.width ?? 640;
+  const w = opts.width ?? 660;
   const h = opts.height ?? 78;
   const node = new Node(opts.name);
   parent.addChild(node);
@@ -157,20 +157,21 @@ export async function createInkOption(
   const sp = bg.addComponent(Sprite);
   sp.sizeMode = Sprite.SizeMode.CUSTOM;
   sp.type = Sprite.Type.SIMPLE;
-  const frame = await loadSpriteFrame(MENU_TEX.inkMain);
+  const frame =
+    (await loadSpriteFrame(MENU_TEX.inkOption)) ?? (await loadSpriteFrame(MENU_TEX.rowSlip));
   if (frame) {
     sp.spriteFrame = frame;
   } else {
     const px = await loadSpriteFrame(MENU_TEX.pixel);
     if (px) sp.spriteFrame = px;
-    sp.color = new Color(28, 24, 18, 220);
+    sp.color = new Color(20, 16, 12, 120);
   }
   const op = bg.addComponent(UIOpacity);
-  op.opacity = 200;
+  op.opacity = 210;
 
   const rim = new Node('Rim');
   node.addChild(rim);
-  rim.addComponent(UITransform).setContentSize(w + 8, h + 8);
+  rim.addComponent(UITransform).setContentSize(w + 6, h + 6);
   const rimSp = rim.addComponent(Sprite);
   rimSp.sizeMode = Sprite.SizeMode.CUSTOM;
   const rimFrame = await loadSpriteFrame(MENU_TEX.rim);
@@ -180,7 +181,7 @@ export async function createInkOption(
 
   makeLabel(node, 'Label', opts.label, {
     fontSize: 32,
-    color: new Color(BANNER_LABEL_COLOR.r, BANNER_LABEL_COLOR.g, BANNER_LABEL_COLOR.b, 255),
+    color: new Color(INK_UI_TEXT.r, INK_UI_TEXT.g, INK_UI_TEXT.b, 255),
     y: 0,
     bold: true,
   });
@@ -197,8 +198,9 @@ export async function createInkOption(
   return {
     node,
     setSelected: (on: boolean) => {
-      rimOp.opacity = on ? 220 : 0;
+      rimOp.opacity = on ? 230 : 0;
       op.opacity = on ? 255 : 200;
+      sp.color = on ? new Color(255, 248, 235, 255) : Color.WHITE;
     },
   };
 }

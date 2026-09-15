@@ -7,7 +7,6 @@ import {
   makeRowLabel,
   type InkOption,
 } from '../shared/MenuShell';
-import { RL } from '../shared/RemakeLayout';
 
 export type ScenarioCallbacks = {
   onPick: (scenario: ScenarioDef) => void;
@@ -40,7 +39,7 @@ export async function buildScenarioScreen(
       label: sc.name,
       y,
       width: 640,
-      height: 78,
+      height: 70,
       onClick: () => {
         selected = sc;
         refreshDetail();
@@ -48,16 +47,16 @@ export async function buildScenarioScreen(
       },
     });
     options.push(opt);
-    y -= 100;
+    y -= 86;
   }
   options[0]?.setSelected(true);
 
   await createClassicButton(shell.body, {
     name: 'BtnConfirm',
     label: '确认',
-    style: 'primary',
-    width: RL.btnPrimaryW,
-    height: RL.btnPrimaryH,
+    style: 'tertiary',
+    width: 580,
+    height: 92,
     y: -360,
     onClick: () => callbacks.onPick(selected),
   });

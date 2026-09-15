@@ -23,8 +23,8 @@ export type MenuButtonStyle = 'primary' | 'secondary' | 'tertiary' | 'quaternary
 const TEX_BY_STYLE: Record<MenuButtonStyle, string> = {
   primary: MENU_TEX.inkMain,
   secondary: MENU_TEX.inkMain,
-  tertiary: MENU_TEX.inkMain,
-  quaternary: MENU_TEX.inkMain,
+  tertiary: MENU_TEX.inkSub,
+  quaternary: MENU_TEX.inkSub,
 };
 
 const FONT_BY_STYLE: Record<MenuButtonStyle, number> = {
@@ -102,11 +102,16 @@ export async function createClassicButton(
     y: number;
     onClick: () => void;
     labelColor?: Color;
+    /** 覆盖贴图（标题多变体笔触） */
+    texturePath?: string;
+    /** 轻微水平偏移，增强手写感 */
+    x?: number;
+    bold?: boolean;
   },
 ): Promise<ClassicButton> {
   const node = new Node(opts.name);
   parent.addChild(node);
-  node.setPosition(0, opts.y, 0);
+  node.setPosition(opts.x ?? 0, opts.y, 0);
   const ui = node.addComponent(UITransform);
   ui.setContentSize(opts.width, opts.height);
 
@@ -116,9 +121,9 @@ export async function createClassicButton(
   const sp = bg.addComponent(Sprite);
   sp.sizeMode = Sprite.SizeMode.CUSTOM;
   sp.type = Sprite.Type.SIMPLE;
-  const frame = await loadFrame(TEX_BY_STYLE[opts.style]);
+  const texPath = opts.texturePath ?? TEX_BY_STYLE[opts.style];
+  const frame = await loadFrame(texPath);
   if (frame) {
-    // 关闭九宫，按设计尺寸完整显示水墨匾
     try {
       (frame as unknown as { insetTop: number }).insetTop = 0;
       (frame as unknown as { insetBottom: number }).insetBottom = 0;
@@ -132,7 +137,7 @@ export async function createClassicButton(
   } else {
     const pixel = await loadFrame(MENU_TEX.pixel);
     if (pixel) sp.spriteFrame = pixel;
-    sp.color = new Color(28, 24, 18, 255);
+    sp.color = new Color(28, 24, 18, 180);
   }
 
   const rim = new Node('Rim');
@@ -152,7 +157,7 @@ export async function createClassicButton(
     fontSize: FONT_BY_STYLE[opts.style],
     color: labelColor,
     y: 0,
-    bold: true,
+    bold: opts.bold ?? false,
   });
 
   const btn = node.addComponent(Button);
